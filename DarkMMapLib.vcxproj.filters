@@ -1,0 +1,88 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="!Common">
+      <UniqueIdentifier>{93e4251f-a3bb-49f4-998b-4d16eb2e1e19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory">
+      <UniqueIdentifier>{9a25ba64-75ca-4cc4-a275-a733593bdb77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory\Process">
+      <UniqueIdentifier>{bdee8ac5-6f65-47ff-aef1-e9be5c2875b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory\LDAsm">
+      <UniqueIdentifier>{7639ad6a-5c44-42f8-a5a2-05a939438413}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory\AsmHelpers">
+      <UniqueIdentifier>{1866de54-d6bd-483d-b81c-074f03863c0c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>!Common</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>!Common</Filter>
+    </ClInclude>
+    <ClInclude Include="FileProjection.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Process.h">
+      <Filter>Memory\Process</Filter>
+    </ClInclude>
+    <ClInclude Include="MemCore.h">
+      <Filter>Memory\Process</Filter>
+    </ClInclude>
+    <ClInclude Include="LDasm.h">
+      <Filter>Memory\LDAsm</Filter>
+    </ClInclude>
+    <ClInclude Include="PEManger.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="AsmHelper32.h">
+      <Filter>Memory\AsmHelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="AsmHelper64.h">
+      <Filter>Memory\AsmHelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="AsmHelperBase.h">
+      <Filter>Memory\AsmHelpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Errors.h" />
+    <ClInclude Include="MemModules.h">
+      <Filter>Memory\Process</Filter>
+    </ClInclude>
+    <ClInclude Include="DarkMMap.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="FileProjection.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="Process.cpp">
+      <Filter>Memory\Process</Filter>
+    </ClCompile>
+    <ClCompile Include="MemCore.cpp">
+      <Filter>Memory\Process</Filter>
+    </ClCompile>
+    <ClCompile Include="LDasm.c">
+      <Filter>Memory\LDAsm</Filter>
+    </ClCompile>
+    <ClCompile Include="PEManger.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="AsmHelper32.cpp">
+      <Filter>Memory\AsmHelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="AsmHelper64.cpp">
+      <Filter>Memory\AsmHelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="AsmHelperBase.cpp">
+      <Filter>Memory\AsmHelpers</Filter>
+    </ClCompile>
+    <ClCompile Include="MemModules.cpp">
+      <Filter>Memory\Process</Filter>
+    </ClCompile>
+    <ClCompile Include="Errors.cpp" />
+    <ClCompile Include="DarkMMap.cpp" />
+  </ItemGroup>
+</Project>

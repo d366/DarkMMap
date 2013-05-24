@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DarkMMapLib", "DarkMMapLib.vcxproj", "{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2F2F6276-D084-4449-A37F-FA2850291582} = {2F2F6276-D084-4449-A37F-FA2850291582}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AsmJit", "AsmJit\AsmJit.vcxproj", "{2F2F6276-D084-4449-A37F-FA2850291582}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DarkMMapTest", "DarkMMapTest\DarkMMapTest.vcxproj", "{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B} = {FC8D5B11-B1CF-41F2-9585-E7FD715B419B}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Debug|Win32.Build.0 = Debug|Win32
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Debug|x64.ActiveCfg = Debug|x64
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Debug|x64.Build.0 = Debug|x64
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Release|Win32.ActiveCfg = Release|Win32
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Release|Win32.Build.0 = Release|Win32
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Release|x64.ActiveCfg = Release|x64
+		{FC8D5B11-B1CF-41F2-9585-E7FD715B419B}.Release|x64.Build.0 = Release|x64
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Debug|Win32.Build.0 = Debug|Win32
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Debug|x64.ActiveCfg = Debug|x64
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Debug|x64.Build.0 = Debug|x64
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Release|Win32.ActiveCfg = Release|Win32
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Release|Win32.Build.0 = Release|Win32
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Release|x64.ActiveCfg = Release|x64
+		{2F2F6276-D084-4449-A37F-FA2850291582}.Release|x64.Build.0 = Release|x64
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Debug|Win32.Build.0 = Debug|Win32
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Debug|Win32.Deploy.0 = Debug|Win32
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Debug|x64.ActiveCfg = Debug|x64
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Debug|x64.Build.0 = Debug|x64
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Release|Win32.ActiveCfg = Release|Win32
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Release|Win32.Build.0 = Release|Win32
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Release|x64.ActiveCfg = Release|x64
+		{0A6A7D16-39F1-47CF-B399-40640CFDFF5A}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

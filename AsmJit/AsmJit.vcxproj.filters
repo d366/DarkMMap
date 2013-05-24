@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="AsmJit\ApiBegin.h" />
+    <ClInclude Include="AsmJit\ApiEnd.h" />
+    <ClInclude Include="AsmJit\AsmJit.h" />
+    <ClInclude Include="AsmJit\Assembler.h" />
+    <ClInclude Include="AsmJit\AssemblerX86X64.h" />
+    <ClInclude Include="AsmJit\Build.h" />
+    <ClInclude Include="AsmJit\CodeGenerator.h" />
+    <ClInclude Include="AsmJit\Compiler.h" />
+    <ClInclude Include="AsmJit\CompilerX86X64.h" />
+    <ClInclude Include="AsmJit\Config.h" />
+    <ClInclude Include="AsmJit\CpuInfo.h" />
+    <ClInclude Include="AsmJit\Defs.h" />
+    <ClInclude Include="AsmJit\DefsX86X64.h" />
+    <ClInclude Include="AsmJit\Logger.h" />
+    <ClInclude Include="AsmJit\MemoryManager.h" />
+    <ClInclude Include="AsmJit\MemoryMarker.h" />
+    <ClInclude Include="AsmJit\Operand.h" />
+    <ClInclude Include="AsmJit\OperandX86X64.h" />
+    <ClInclude Include="AsmJit\Platform.h" />
+    <ClInclude Include="AsmJit\Util.h" />
+    <ClInclude Include="AsmJit\Util_p.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="AsmJit\AssemblerX86X64.cpp" />
+    <ClCompile Include="AsmJit\CodeGenerator.cpp" />
+    <ClCompile Include="AsmJit\Compiler.cpp" />
+    <ClCompile Include="AsmJit\CompilerX86X64.cpp" />
+    <ClCompile Include="AsmJit\CpuInfo.cpp" />
+    <ClCompile Include="AsmJit\Defs.cpp" />
+    <ClCompile Include="AsmJit\DefsX86X64.cpp" />
+    <ClCompile Include="AsmJit\Logger.cpp" />
+    <ClCompile Include="AsmJit\MemoryManager.cpp" />
+    <ClCompile Include="AsmJit\MemoryMarker.cpp" />
+    <ClCompile Include="AsmJit\OperandX86X64.cpp" />
+    <ClCompile Include="AsmJit\Platform.cpp" />
+    <ClCompile Include="AsmJit\Util.cpp" />
+  </ItemGroup>
+</Project>
