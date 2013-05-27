@@ -107,7 +107,7 @@ namespace ds_mmap
         /*
             Fix relocations if image wasn't loaded at base address
         */
-        bool FixReloc();
+        bool RelocateImage();
 
         /*
             Fill import table

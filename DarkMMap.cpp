@@ -116,7 +116,7 @@ namespace ds_mmap
             CreateActx(1);
 
         // Core image operations
-        if(!CopyImage() || !FixReloc())
+        if(!CopyImage() || !RelocateImage())
         {
             m_pTopImage = pOldImage;
             return 0;
@@ -240,7 +240,7 @@ namespace ds_mmap
     /*
         Fix relocations if image wasn't loaded at base address
     */
-    bool CDarkMMap::FixReloc()
+    bool CDarkMMap::RelocateImage()
     {
         size_t Delta = 0;
         ds_pe::IMAGE_BASE_RELOCATION2* fixrec = (ds_pe::IMAGE_BASE_RELOCATION2*)m_pTopImage->ImagePE.DirectoryAddress(IMAGE_DIRECTORY_ENTRY_BASERELOC);
@@ -248,11 +248,18 @@ namespace ds_mmap
         // Reloc delta
         Delta = (size_t)m_pTopImage->pTargetBase - (size_t)m_pTopImage->ImagePE.ImageBase();
 
-        // Loaded at image base - no need for fixup
-        if (Delta == 0 || fixrec == nullptr) 
+        // No need to relocate
+        if(Delta == 0)
         {
             SetLastError(ERROR_SUCCESS);
-            return true;
+            return false;
+        }
+
+        // No relocations
+        if (fixrec == nullptr) 
+        {
+            SetLastError(err::mapping::CantRelocate);
+            return false;
         }
 
         // table not empty
@@ -361,7 +368,7 @@ namespace ds_mmap
 
                 if(pFuncPtr == nullptr)
                 {
-                    SetLastError(err::mapping::CantResolveImport);
+                    SetLastError(err::mapping::NoImportFunction);
                     return false;
                 }
 
@@ -454,7 +461,7 @@ namespace ds_mmap
 
                 if(pFuncPtr == nullptr)
                 {
-                    SetLastError(err::mapping::CantResolveImport);
+                    SetLastError(err::mapping::NoImportFunction);
                     return false;
                 }
 

@@ -41,7 +41,9 @@ namespace err
             AbnormalRelocation  = pe::end + 3,
             CantCreateActx      = pe::end + 4,
             CantResolveImport   = pe::end + 5,
-            ResolutionSkipped   = pe::end + 6,
+            NoImportFunction    = pe::end + 6,
+            ResolutionSkipped   = pe::end + 7,
+            CantRelocate        = pe::end + 8,
 
             end                 = pe::end + 100,
         };
@@ -66,7 +68,9 @@ namespace err
         { mapping::CantMap,             "Can't map image" },
         { mapping::AbnormalRelocation,  "Abnormal relocation encountered during image fix-up" },
         { mapping::CantCreateActx,      "Can't create Activation context" },
-        { mapping::CantResolveImport,   "Failed to resolve one or more import libraries" }
+        { mapping::CantResolveImport,   "Failed to resolve one or more import libraries" },
+        { mapping::NoImportFunction,    "Import function was not found in module" },
+        { mapping::CantRelocate,        "Image can't be relocated. Relocation information is missing" }
     };
 
     std::string GetErrorDescription(int code);
