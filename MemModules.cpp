@@ -329,6 +329,7 @@ namespace ds_mmap
             UNICODE_STRING DllName2;
             PUNICODE_STRING pPath = nullptr;
             ULONG_PTR cookie = 0;
+            HANDLE hCtx = m_ActxStack.empty() ? INVALID_HANDLE_VALUE : m_ActxStack.top();
             wchar_t wBuf[255];
 
             if(path.rfind(L".dll") != std::wstring::npos)
@@ -343,14 +344,14 @@ namespace ds_mmap
             DllName1.MaximumLength  = ARRAYSIZE(wBuf);
 
             // Use activation context
-            if(m_hLocalActx && m_hLocalActx != INVALID_HANDLE_VALUE)
-                ActivateActCtx(m_hLocalActx, &cookie);
+            if(hCtx && hCtx != INVALID_HANDLE_VALUE)
+                ActivateActCtx(hCtx, &cookie);
 
             // SxS resolve
             NTSTATUS status = RtlDosApplyFileIsolationRedirection_Ustr(1, &OriginalName, &Extension, &DllName1, &DllName2, &pPath, 
                 NULL, NULL, NULL);
 
-            if(cookie != 0 && m_hLocalActx && m_hLocalActx != INVALID_HANDLE_VALUE)
+            if(cookie != 0 && hCtx && hCtx != INVALID_HANDLE_VALUE)
                 DeactivateActCtx(0, cookie);
 
             if(status == 0)
@@ -669,9 +670,17 @@ namespace ds_mmap
         /*
             Set active activation context
         */
-        void CMemModules::SetLocalActx( HANDLE hActx /*= INVALID_HANDLE_VALUE*/ )
+        void CMemModules::PushLocalActx( HANDLE hActx /*= INVALID_HANDLE_VALUE*/ )
         {
-            m_hLocalActx = hActx;
+            m_ActxStack.push(hActx);
+        }
+
+        /*
+            Restore previous active activation context
+        */
+        void CMemModules::PopLocalActx()
+        {
+            m_ActxStack.pop();
         }
     }
 }

@@ -86,7 +86,7 @@ namespace ds_mmap
         }
 
         // Set current activation context
-        m_TargetProcess.Modules.SetLocalActx(m_pTopImage->Image.actx());
+        m_TargetProcess.Modules.PushLocalActx(m_pTopImage->Image.actx());
 
         // Already loaded
         if(HMODULE hMod = m_TargetProcess.Modules.GetModuleAddress(m_pTopImage->FilePath.filename().c_str()))
@@ -135,8 +135,8 @@ namespace ds_mmap
         ProtectImageMemory();
 
         // Make exception handling possible (C and C++)
-        if(m_TargetProcess.DisabeDEP() != ERROR_SUCCESS /*&&
-            !(m_pTopImage->flags & NoExceptions) && !EnableExceptions()*/)
+        if(/*m_TargetProcess.DisabeDEP() != ERROR_SUCCESS &&*/
+            !(m_pTopImage->flags & NoExceptions) && !EnableExceptions())
         {
             m_pTopImage = pOldImage;
             return 0;
@@ -158,7 +158,7 @@ namespace ds_mmap
 
         // Free local image
         m_pTopImage->Image.Release();
-        m_TargetProcess.Modules.SetLocalActx(INVALID_HANDLE_VALUE);
+        m_TargetProcess.Modules.PopLocalActx();
 
         // Save mapped image context
         m_Images.emplace_back(m_pTopImage);

@@ -8,6 +8,7 @@
 #include <map>
 #include <algorithm>
 #include <vector>
+#include <stack>
 #include <filesystem>
 #include <Shlwapi.h>
 
@@ -159,7 +160,12 @@ namespace ds_mmap
             /*
                 Set active activation context
             */
-            void SetLocalActx(HANDLE hActx = INVALID_HANDLE_VALUE);
+            void PushLocalActx(HANDLE hActx = INVALID_HANDLE_VALUE);
+
+            /*
+                Restore previous active activation context
+            */
+            void PopLocalActx( );
 
         private:
             CMemModules& operator = (const CMemModules&) {}
@@ -182,13 +188,16 @@ namespace ds_mmap
             */
             std::wstring GetProcessDirectory();
 
+            
         private:
             CMemCore&           m_memory;           // Process memory routines
-            HANDLE              m_hLocalActx;       // Local activation context for SxS name resolution
             static mapApiSchema m_ApiSchemaMap;     // Api schema map
 
             // List of manually mapped modules
             std::map<std::wstring, HMODULE> ms_modules;
+
+            // Activation context stack
+            std::stack<HANDLE> m_ActxStack;
         };
     }
 }
