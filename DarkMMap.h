@@ -76,6 +76,22 @@ namespace ds_mmap
             Unmap associated PE image from target process
         */
         bool UnmapDll();
+
+        /*
+            Get address of function in another process
+
+            IN:
+                hMod - module base
+                func - function name or ordinal
+
+            OUT:
+                void
+
+            RETURN:
+                Function address
+                0 - if not found shdocvw.dll 0x8d
+        */
+        FARPROC GetProcAddressEx(HMODULE mod, const char* procName);
         
     private:
         /*

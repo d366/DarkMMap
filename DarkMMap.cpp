@@ -14,6 +14,26 @@ namespace ds_mmap
     }
 
     /*
+        Get address of function in another process
+
+        IN:
+            hMod - module base
+            func - function name or ordinal
+
+        OUT:
+            void
+
+        RETURN:
+            Function address
+            0 - if not found
+    */
+    FARPROC CDarkMMap::GetProcAddressEx( HMODULE mod, const char* procName )
+    {
+        return m_TargetProcess.Modules.GetProcAddressEx(mod, procName);
+    }
+
+
+    /*
         Manually map PE image into target process
 
         IN:
@@ -115,8 +135,8 @@ namespace ds_mmap
         ProtectImageMemory();
 
         // Make exception handling possible (C and C++)
-        if(/*TargetProcess.DisabeDEP() != ERROR_SUCCESS &&*/
-            !(m_pTopImage->flags & NoExceptions) && !EnableExceptions())
+        if(m_TargetProcess.DisabeDEP() != ERROR_SUCCESS /*&&
+            !(m_pTopImage->flags & NoExceptions) && !EnableExceptions()*/)
         {
             m_pTopImage = pOldImage;
             return 0;
