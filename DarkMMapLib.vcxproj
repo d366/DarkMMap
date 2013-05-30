@@ -193,6 +193,8 @@
     <ClInclude Include="LDasm.h" />
     <ClInclude Include="MemCore.h" />
     <ClInclude Include="MemModules.h" />
+    <ClInclude Include="NativeLoaderHelper.h" />
+    <ClInclude Include="NtStructures.h" />
     <ClInclude Include="PEManger.h" />
     <ClInclude Include="Process.h" />
     <ClInclude Include="stdafx.h" />
@@ -215,6 +217,7 @@
     <ClCompile Include="LDasm.c" />
     <ClCompile Include="MemCore.cpp" />
     <ClCompile Include="MemModules.cpp" />
+    <ClCompile Include="NativeLoaderHelper.cpp" />
     <ClCompile Include="PEManger.cpp" />
     <ClCompile Include="Process.cpp" />
   </ItemGroup>

@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "MemCore.h"
+#include "NativeLoaderHelper.h"
 
 #include <string>
 #include <map>
@@ -18,47 +19,6 @@ namespace ds_mmap
 {
     namespace ds_process
     {
-        extern "C"
-        NTSYSAPI 
-        NTSTATUS 
-        NTAPI 
-        RtlDosApplyFileIsolationRedirection_Ustr(IN ULONG Flags,
-                                                 IN PUNICODE_STRING OriginalName,
-                                                 IN PUNICODE_STRING Extension,
-                                                 IN OUT PUNICODE_STRING StaticString,
-                                                 IN OUT PUNICODE_STRING DynamicString,
-                                                 IN OUT PUNICODE_STRING *NewName,
-                                                 IN PULONG 	NewFlags,
-                                                 IN PSIZE_T FileNameSize,
-                                                 IN PSIZE_T RequiredLength);	
-        //
-        // Api schema structures
-        //
-        struct ApiSchemaMapHeader
-        {
-            DWORD Version;
-            DWORD NumModules;
-        };
-
-        struct ApiSchemaModuleEntry
-        {
-            DWORD OffsetToName;
-            WORD NameSize;
-            DWORD OffsetOfHosts;
-        };
-
-        struct ApiSchemaModuleHostsHeader
-        {
-            DWORD NumHosts;
-        };
-
-        struct ApiSchemaModuleHost
-        {
-            DWORD OffsetOfImportingName;
-            WORD ImportingNameSize;
-            DWORD OffsetOfHostName;
-            WORD HostNameSize;
-        };
 
         // Resolve path flags
         enum eResolveFlag
@@ -158,6 +118,10 @@ namespace ds_mmap
             void RemoveManualModule(const std::wstring& name);
 
             /*
+            */
+            bool CreateNTReference(HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath );
+
+            /*
                 Set active activation context
             */
             void PushLocalActx(HANDLE hActx = INVALID_HANDLE_VALUE);
@@ -188,7 +152,6 @@ namespace ds_mmap
             */
             std::wstring GetProcessDirectory();
 
-            
         private:
             CMemCore&           m_memory;           // Process memory routines
             static mapApiSchema m_ApiSchemaMap;     // Api schema map
@@ -198,6 +161,8 @@ namespace ds_mmap
 
             // Activation context stack
             std::stack<HANDLE> m_ActxStack;
+
+            CNtLdr m_native;
         };
     }
 }

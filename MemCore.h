@@ -6,6 +6,10 @@
 #include "AsmHelperBase.h"
 #include "AsmHelper32.h"
 #include "AsmHelper64.h"
+#include "NtStructures.h"
+
+#include <vector>
+#include <memory>
 
 namespace ds_mmap
 {
@@ -102,10 +106,9 @@ namespace ds_mmap
             template<class T>
             T Read(void* dwAddress)
             {
-                T res;
+                T res = {0};
     
-                if(Read(dwAddress, sizeof(T), &res) != ERROR_SUCCESS)
-                    return (T)-1;
+                Read(dwAddress, sizeof(T), &res);
     
                 return res;
             };
@@ -124,7 +127,7 @@ namespace ds_mmap
                 RETURN:
                     Error code
             */
-            DWORD Write(void* pAddress, size_t dwSize, void* pData);
+            DWORD Write(void* pAddress, size_t dwSize, const void* pData);
     
             /*
                 Write process memory (templated)
@@ -216,7 +219,6 @@ namespace ds_mmap
             */
             DWORD ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult );
     
-        
         private:
             /*
                 Create event to synchronize APC procedures
@@ -225,15 +227,19 @@ namespace ds_mmap
                     Error code
             */
             bool CreateAPCEvent();
+
+            /*void* GetLdrpModuleBaseAddressIndex();
+            int FindBytes(const uint8_t *val, size_t valSize, std::vector<size_t> &out, size_t startAddress, size_t regionSize);*/
     
         private:
             HANDLE  m_hProcess;         // Process handle
             HANDLE  m_hMainThd;         // Process main thread handle
-            HANDLE  m_hWorkThd;        // Worker thread handle
-            HANDLE  m_hWaitEvent;      // APC sync event handle
+            HANDLE  m_hWorkThd;         // Worker thread handle
+            HANDLE  m_hWaitEvent;       // APC sync event handle
             DWORD   m_dwImageBase;      // Address of main module
             DWORD   m_pid;              // Process PID
-            void*   m_pWorkerCode;     // Worker thread address space
+            void*   m_pWorkerCode;      // Worker thread address space
+            void*   m_pW8DllBase;       // Windows 8 module tree root node
         };
     }
 }

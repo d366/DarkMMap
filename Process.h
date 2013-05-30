@@ -5,6 +5,8 @@
 #include "MemCore.h"
 #include "MemModules.h"
 
+#include <winioctl.h>
+
 namespace ds_mmap
 {
     namespace ds_process
@@ -13,15 +15,8 @@ namespace ds_mmap
         #define IOCTL_DARKDEP_DISABLE_DEP       CTL_CODE(FILE_DEVICE_DARKDEP, 0x800, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
         #define IOCTL_DARKDEP_SET_PROTECTION    CTL_CODE(FILE_DEVICE_DARKDEP, 0x801, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
 
-        //#pragma pack( push, 8 )
-        typedef struct _SET_PROC_PROTECTION
-        {
-            ULONG    pid;
-            BOOLEAN enableState;
-        }SET_PROC_PROTECTION, *PSET_PROC_PROTECTION;
-        //#pragma pack( pop )
 
-        //Provides operations with game process memory 
+        // Provides operations with process memory 
         class CProcess
         {
         public:
@@ -29,10 +24,10 @@ namespace ds_mmap
             ~CProcess(void);
 
             /*
-                Set working Game process
+                Set working process
 
                 IN:
-                    hProcess - handle to game process
+                    hProcess - handle to process
                     dwModuleBase - address of main module
 
                 OUT:
@@ -90,6 +85,7 @@ namespace ds_mmap
             DWORD RemoveVEH();
 
         public:
+
             //
             // VEH to inject
             //
@@ -103,6 +99,7 @@ namespace ds_mmap
             CMemCore    Core;       // Process core memory routines
             CMemModules Modules;    // Module routines
 
+            // For debug purposes only
             static void* pImageBase;
             static size_t imageSize;
 

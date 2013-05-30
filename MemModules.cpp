@@ -4,10 +4,11 @@ namespace ds_mmap
 {
     namespace ds_process
     {
-        CMemModules::mapApiSchema       CMemModules::m_ApiSchemaMap;
+        CMemModules::mapApiSchema CMemModules::m_ApiSchemaMap;
 
         CMemModules::CMemModules(CMemCore& mem)
             : m_memory(mem)
+            , m_native(mem)
         {
             InitApiSchema();
         }
@@ -635,6 +636,11 @@ namespace ds_mmap
             CloseHandle(snapshot);
 
             return path;
+        }
+
+        bool CMemModules::CreateNTReference( HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath )
+        {
+            return m_native.CreateNTReference(hMod, ImageSize, DllBaseName, DllBasePath);
         }
 
         /*

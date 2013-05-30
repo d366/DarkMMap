@@ -16,8 +16,10 @@ namespace ds_mmap
     {
         NoFlags         = 0,    // No flags
         ManualImports   = 1,    // Manually map import libraries
-        NoExceptions    = 2,    // Do not create custom exception handler
-        NoDelayLoad     = 4,    // Do not resolve delay import
+        CreateLdrRef    = 2,    // Create module references for native loader
+        NoExceptions    = 4,    // Do not create custom exception handler
+        NoDelayLoad     = 8,    // Do not resolve delay import
+        NoSxS           = 16,   // Do not apply SxS activation context
     };
 
     struct ImageContext
@@ -26,16 +28,15 @@ namespace ds_mmap
         ds_pe::CPEManger     ImagePE;         // PE parser
         eLoadFlags           flags;           // Image loader flags
         void                *pTargetBase;     // Target image base address
-        void                *pAContext;       // SxS activation context memory address
         size_t               pExpTableAddr;   // Exception table address (amd64 only)
         std::vector<void*>   tlsCallbacks;    // TLS callback routines
         std::tr2::sys::wpath FilePath;        // path to image being mapped
+        std::wstring         FileName;        // File name string
         pDllMain             EntryPoint;      // Target image entry point
 
         ImageContext()
             : flags(NoFlags)
             , pTargetBase(nullptr)
-            , pAContext(nullptr)
             , pExpTableAddr(0)
             , FilePath(L"")
             , EntryPoint(nullptr)
@@ -190,5 +191,7 @@ namespace ds_mmap
         ImageContext           *m_pTopImage;        // Image context information 
         ds_process::CProcess    m_TargetProcess;    // Target process manager
         int                     m_tlsIndex;         // Current static TLS index
+        void                   *pAContext;          // SxS activation context memory address
     };
 }
+

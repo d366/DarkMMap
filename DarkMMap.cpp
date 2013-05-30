@@ -69,6 +69,7 @@ namespace ds_mmap
 
         m_pTopImage           = new ImageContext();
         m_pTopImage->FilePath = path;
+        m_pTopImage->FileName = m_pTopImage->FilePath.filename();
         m_pTopImage->flags    = flags;
 
         // Load and parse image
@@ -86,10 +87,11 @@ namespace ds_mmap
         }
 
         // Set current activation context
-        m_TargetProcess.Modules.PushLocalActx(m_pTopImage->Image.actx());
+        if(!(flags & NoSxS))
+            m_TargetProcess.Modules.PushLocalActx(m_pTopImage->Image.actx());
 
         // Already loaded
-        if(HMODULE hMod = m_TargetProcess.Modules.GetModuleAddress(m_pTopImage->FilePath.filename().c_str()))
+        if(HMODULE hMod = m_TargetProcess.Modules.GetModuleAddress(m_pTopImage->FileName.c_str()))
         {
             m_pTopImage = pOldImage;
             return hMod;
@@ -112,17 +114,24 @@ namespace ds_mmap
         // Create Activation context for SxS
         // .exe files usually contain manifest under id of 1
         // .dll files have manifest under id of 2
-        if(!CreateActx(2))
-            CreateActx(1);
+        if(!(flags & NoSxS))
+        {
+            if(!CreateActx(2))
+                CreateActx(1);
+        }
 
-        // Core image operations
+        // Core image mapping operations
         if(!CopyImage() || !RelocateImage())
         {
             m_pTopImage = pOldImage;
             return 0;
         }
 
-        m_TargetProcess.Modules.AddManualModule(m_pTopImage->FilePath.filename(), (HMODULE)m_pTopImage->pTargetBase);
+        m_TargetProcess.Modules.AddManualModule(m_pTopImage->FileName, (HMODULE)m_pTopImage->pTargetBase);
+
+        // Create reference for native loader functions
+        if(flags & CreateLdrRef)
+            m_TargetProcess.Modules.CreateNTReference((HMODULE)m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize(),m_pTopImage->FileName, m_pTopImage->FilePath);
 
         // Import tables
         if(!ResolveImport() || (!(flags & NoDelayLoad) && !ResolveDelayImport()))
@@ -153,12 +162,15 @@ namespace ds_mmap
         // Stupid security cookie
         InitializeCookie();
         
+        // Entry point
         if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)
             CallEntryPoint(DLL_PROCESS_ATTACH);
 
         // Free local image
         m_pTopImage->Image.Release();
-        m_TargetProcess.Modules.PopLocalActx();
+
+        if(!(flags & NoSxS))
+            m_TargetProcess.Modules.PopLocalActx();
 
         // Save mapped image context
         m_Images.emplace_back(m_pTopImage);
@@ -212,10 +224,12 @@ namespace ds_mmap
         if(m_TargetProcess.Core.Protect(m_pTopImage->pTargetBase, dwHeaderSize, PAGE_READONLY) != ERROR_SUCCESS)
             return false;
 
+        auto sections = m_pTopImage->ImagePE.Sections();
+
         // Copy sections
-        for( const IMAGE_SECTION_HEADER& section : m_pTopImage->ImagePE.Sections())
+        for( auto& section : sections)
         {
-            if(m_TargetProcess.Core.Write((BYTE*)m_pTopImage->pTargetBase + section.VirtualAddress, section.Misc.VirtualSize, (BYTE*)m_pTopImage->Image.base() + section.VirtualAddress) != ERROR_SUCCESS)
+            if(m_TargetProcess.Core.Write((uint8_t*)m_pTopImage->pTargetBase + section.VirtualAddress, section.Misc.VirtualSize, (BYTE*)m_pTopImage->Image.base() + section.VirtualAddress) != ERROR_SUCCESS)
                 return false;
         }
 
@@ -252,7 +266,7 @@ namespace ds_mmap
         if(Delta == 0)
         {
             SetLastError(ERROR_SUCCESS);
-            return false;
+            return true;
         }
 
         // No relocations
@@ -325,16 +339,16 @@ namespace ds_mmap
                 // For win32 one exception handler is enough
                 // For amd64 each image must have it's own handler to properly resolve C++ exceptions
             #ifdef _M_AMD64
-                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad);
+                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS);
             #else
-                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoExceptions);
+                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS |NoExceptions);
             #endif
 
                 // Loading method
                 if(m_pTopImage->flags & ManualImports)
                     hMod = MapDll(strDll, newFlags);
                 else
-                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), m_pTopImage->pAContext);
+                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), pAContext);
 
                 if(!hMod)
                 {
@@ -424,16 +438,16 @@ namespace ds_mmap
                 // For win32 one exception handler is enough
                 // For amd64 each image must have it's own handler to properly resolve C++ exceptions
             #ifdef _M_AMD64
-                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad);
+                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS);
             #else
-                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoExceptions);
+                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS | NoExceptions);
             #endif
 
                 // Loading method
                 if(m_pTopImage->flags & ManualImports)
                     hMod = MapDll(strDll, newFlags);
                 else
-                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), m_pTopImage->pAContext);
+                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), pAContext);
 
                 if(!hMod)
                     continue;      
@@ -507,8 +521,10 @@ namespace ds_mmap
             if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS)
                 return false;
 
-            return (m_TargetProcess.CreateVEH((size_t)m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize()) == ERROR_SUCCESS);
-            //return true;
+            if(m_pTopImage->flags & CreateLdrRef)
+                return true;
+            else
+                return (m_TargetProcess.CreateVEH((size_t)m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize()) == ERROR_SUCCESS);
         }
         else
             return false;
@@ -541,7 +557,10 @@ namespace ds_mmap
             if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS)
                 return false;
 
-            return (m_TargetProcess.RemoveVEH() == ERROR_SUCCESS);
+            if(m_pTopImage->flags & CreateLdrRef)
+                return true;
+            else
+                return (m_TargetProcess.RemoveVEH() == ERROR_SUCCESS);
         }
         else
             return false;
@@ -594,7 +613,7 @@ namespace ds_mmap
         #endif
             void *pCopyFunc = GetProcAddress(GetModuleHandle(_T("ntdll.dll")), "RtlMoveMemory");
 
-            // TEB.LocalTLS
+            // TEB.ThreadLocalStoragePointer
             a.add(AsmJit::nax, 0xB*WordSize);
             a.mov(AsmJit::sysint_ptr(AsmJit::nax), AsmJit::ndi);
             ah.GenCall(pCopyFunc, {AsmJit::nbx, REBASE(pTls->StartAddressOfRawData, m_pTopImage->ImagePE.ImageBase(), m_pTopImage->pTargetBase), pTls->EndAddressOfRawData - pTls->StartAddressOfRawData});
@@ -620,9 +639,9 @@ namespace ds_mmap
 
         IN:
             dwReason - DLL_PROCESS_ATTACH
-                        DLL_THREAD_ATTACH 
-                        DLL_PROCESS_DETACH
-                        DLL_THREAD_DETTACH
+                       DLL_THREAD_ATTACH 
+                       DLL_PROCESS_DETACH
+                       DLL_THREAD_DETTACH
     */
     bool CDarkMMap::RunTLSInitializers( DWORD dwReason )
     {
@@ -637,11 +656,11 @@ namespace ds_mmap
         ah.GenPrologue();
 
         // ActivateActCtx
-        if(m_pTopImage->pAContext)
+        if(pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)m_pTopImage->pAContext);
+            a.mov(AsmJit::nax, (size_t)pAContext);
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
-            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)m_pTopImage->pAContext + sizeof(HANDLE)});
+            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)pAContext + sizeof(HANDLE)});
         }
 
         for (auto& pCallback : m_pTopImage->tlsCallbacks)
@@ -649,9 +668,9 @@ namespace ds_mmap
             ah.GenCall(pCallback, {(size_t)m_pTopImage->pTargetBase, dwReason, NULL});
 
         // DeactivateActCtx
-        if(m_pTopImage->pAContext)
+        if(pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)m_pTopImage->pAContext + sizeof(HANDLE));
+            a.mov(AsmJit::nax, (size_t)pAContext + sizeof(HANDLE));
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
             ah.GenCall(&DeactivateActCtx, {0, AsmJit::nax});
         }
@@ -671,7 +690,7 @@ namespace ds_mmap
     {
         IMAGE_LOAD_CONFIG_DIRECTORY *pLC = (IMAGE_LOAD_CONFIG_DIRECTORY*)m_pTopImage->ImagePE.DirectoryAddress(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG);
 
-        if(pLC)
+        if(pLC && pLC->SecurityCookie)
         {
             FILETIME systime = {0};
             LARGE_INTEGER PerformanceCount = {0};
@@ -718,20 +737,20 @@ namespace ds_mmap
         ah.GenPrologue();
 
         // ActivateActCtx
-        if(m_pTopImage->pAContext)
+        if(pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)m_pTopImage->pAContext);
+            a.mov(AsmJit::nax, (size_t)pAContext);
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
-            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)m_pTopImage->pAContext + sizeof(HANDLE)});
+            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)pAContext + sizeof(HANDLE)});
         }
 
         // DllMain(pTopImage->pTargetBase, DLL_PROCESS_ATTACH, NULL)
         ah.GenCall(m_pTopImage->EntryPoint, {(size_t)m_pTopImage->pTargetBase, dwReason, NULL});
 
         // DeactivateActCtx
-        if(m_pTopImage->pAContext)
+        if(pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)m_pTopImage->pAContext + sizeof(HANDLE));
+            a.mov(AsmJit::nax, (size_t)pAContext + sizeof(HANDLE));
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
             ah.GenCall(&DeactivateActCtx, {0, AsmJit::nax});
         }
@@ -767,33 +786,33 @@ namespace ds_mmap
         size_t   result = 0;
         ACTCTX   act    = {0};
 
-        m_TargetProcess.Core.Allocate(512, m_pTopImage->pAContext);
+        m_TargetProcess.Core.Allocate(512, pAContext);
 
         act.cbSize          = sizeof(act);
         act.dwFlags         = ACTCTX_FLAG_RESOURCE_NAME_VALID;
-        act.lpSource        = (LPCWSTR)((SIZE_T)m_pTopImage->pAContext + sizeof(HANDLE) + sizeof(act));
+        act.lpSource        = (LPCWSTR)((SIZE_T)pAContext + sizeof(HANDLE) + sizeof(act));
         act.lpResourceName  = MAKEINTRESOURCE(id);
 
         ah.GenPrologue();
 
         // CreateActCtx(&act)
-        ah.GenCall(&CreateActCtx, {(size_t)m_pTopImage->pAContext + sizeof(HANDLE)});
+        ah.GenCall(&CreateActCtx, {(size_t)pAContext + sizeof(HANDLE)});
 
         // pTopImage->pAContext = CreateActCtx(&act)
-        a.mov(AsmJit::ndx, (size_t)m_pTopImage->pAContext);
+        a.mov(AsmJit::ndx, (size_t)pAContext);
         a.mov(AsmJit::sysint_ptr(AsmJit::ndx), AsmJit::nax);
 
         ah.SaveRetValAndSignalEvent();
         ah.GenEpilogue();
 
-        m_TargetProcess.Core.Write((BYTE*)m_pTopImage->pAContext + sizeof(HANDLE), sizeof(act), &act);
-        m_TargetProcess.Core.Write((BYTE*)m_pTopImage->pAContext + sizeof(HANDLE) + sizeof(act), 
+        m_TargetProcess.Core.Write((BYTE*)pAContext + sizeof(HANDLE), sizeof(act), &act);
+        m_TargetProcess.Core.Write((BYTE*)pAContext + sizeof(HANDLE) + sizeof(act), 
             (m_pTopImage->FilePath.string().length() + 1)*sizeof(TCHAR) , (void*)m_pTopImage->FilePath.string().c_str());
 
         if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS || (HANDLE)result == INVALID_HANDLE_VALUE)
         {
-            if(m_TargetProcess.Core.Free(m_pTopImage->pAContext) == ERROR_SUCCESS)
-                m_pTopImage->pAContext = nullptr;
+            if(m_TargetProcess.Core.Free(pAContext) == ERROR_SUCCESS)
+                pAContext = nullptr;
 
             SetLastError(err::mapping::CantCreateActx);
             return false;
@@ -807,10 +826,10 @@ namespace ds_mmap
     */
     bool CDarkMMap::FreeActx()
     {
-        if(m_pTopImage->pAContext)
+        if(pAContext)
         {
-            m_TargetProcess.Core.Free(m_pTopImage->pAContext);
-            m_pTopImage->pAContext = nullptr;
+            m_TargetProcess.Core.Free(pAContext);
+            pAContext = nullptr;
         }
 
         return true;

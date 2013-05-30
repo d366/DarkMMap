@@ -1,5 +1,7 @@
 #pragma once
 
+#define WIN32_LEAN_AND_MEAN
+
 #include "targetver.h"
 
 #include <stdio.h>
@@ -15,3 +17,4 @@
 
 #define MAKE_PTR(T, pRVA, base)          (T)((size_t)pRVA + (size_t)base)
 #define REBASE(pRVA, baseOld, baseNew)      ((size_t)pRVA - (size_t)baseOld + (size_t)baseNew)
+

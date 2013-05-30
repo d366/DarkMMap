@@ -53,6 +53,12 @@
       <Filter>Memory\Process</Filter>
     </ClInclude>
     <ClInclude Include="DarkMMap.h" />
+    <ClInclude Include="NtStructures.h">
+      <Filter>Memory\Process</Filter>
+    </ClInclude>
+    <ClInclude Include="NativeLoaderHelper.h">
+      <Filter>Memory\Process</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FileProjection.cpp">
@@ -84,5 +90,8 @@
     </ClCompile>
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="DarkMMap.cpp" />
+    <ClCompile Include="NativeLoaderHelper.cpp">
+      <Filter>Memory\Process</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
