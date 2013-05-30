@@ -483,12 +483,13 @@ namespace ds_mmap
         */
         FARPROC CMemModules::GetProcAddressEx( HMODULE hMod, const char* name )
         {
-            IMAGE_DOS_HEADER        hdrDos  = {0};
-            IMAGE_NT_HEADERS        hdrNt32 = {0};
-            IMAGE_EXPORT_DIRECTORY *expData = nullptr;
-            DWORD                   expSize = 0;
-            size_t                  expBase = 0;
-            void                   *pFunc   = nullptr;
+            std::unique_ptr<IMAGE_EXPORT_DIRECTORY> expData;
+
+            IMAGE_DOS_HEADER hdrDos  = {0};
+            IMAGE_NT_HEADERS hdrNt32 = {0};
+            DWORD            expSize = 0;
+            size_t           expBase = 0;
+            void            *pFunc   = nullptr;
 
             m_memory.Read((void*)hMod, sizeof(hdrDos), &hdrDos);
 
@@ -506,13 +507,13 @@ namespace ds_mmap
             if(expBase)
             {
                 expSize = hdrNt32.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-                expData = (IMAGE_EXPORT_DIRECTORY*)new UCHAR[expSize]();
+                expData.reset((IMAGE_EXPORT_DIRECTORY*)new uint8_t[expSize]());
 
-                m_memory.Read((BYTE*)hMod + expBase, expSize, expData);
+                m_memory.Read((uint8_t*)hMod + expBase, expSize, expData.get());
 
-                WORD  *pAddressOfOrds   = (WORD*)(expData->AddressOfNameOrdinals + (size_t)expData - expBase); 
-                DWORD *pAddressOfNames  = (DWORD*)(expData->AddressOfNames       + (size_t)expData - expBase);
-                DWORD *pAddressOfFuncs  = (DWORD*)(expData->AddressOfFunctions   + (size_t)expData - expBase);
+                WORD  *pAddressOfOrds   = (WORD*)(expData->AddressOfNameOrdinals + (size_t)expData.get() - expBase); 
+                DWORD *pAddressOfNames  = (DWORD*)(expData->AddressOfNames       + (size_t)expData.get() - expBase);
+                DWORD *pAddressOfFuncs  = (DWORD*)(expData->AddressOfFunctions   + (size_t)expData.get() - expBase);
 
                 for( DWORD i = 0; i < expData->NumberOfFunctions; ++i )
                 {
@@ -527,7 +528,7 @@ namespace ds_mmap
                     // Find by name
                     else if((size_t)name > 0xFFFF && i < expData->NumberOfNames)
                     {
-                        pName       = (char*)(pAddressOfNames[i] + (size_t)expData - expBase);            
+                        pName       = (char*)(pAddressOfNames[i] + (size_t)expData.get() - expBase);            
                         OrdIndex    = (WORD)pAddressOfOrds[i];
                     }
                     else
@@ -565,8 +566,6 @@ namespace ds_mmap
                         break;
                     }
                 }
-
-                delete[] expData;
             }
 
             return (FARPROC)pFunc;

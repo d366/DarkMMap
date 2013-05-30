@@ -345,22 +345,22 @@ namespace ds_mmap
 
         DWORD CMemCore::TerminateWorkerThread()
         {
-            if(m_hWaitEvent)
+            /*if(m_hWaitEvent)
             {
                 CloseHandle(m_hWaitEvent);
                 m_hWaitEvent = NULL;
-            }
+            }*/
 
             if(m_hWorkThd)
             {
                 BOOL res   = TerminateThread(m_hWorkThd, 0);
                 m_hWorkThd = NULL;
 
-                if(m_pWorkerCode)
+                /*if(m_pWorkerCode)
                 {
                     Free(m_pWorkerCode);
                     m_pWorkerCode = nullptr;
-                }
+                }*/
 
                 return res == TRUE;
             }

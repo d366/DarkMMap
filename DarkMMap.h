@@ -48,7 +48,7 @@ namespace ds_mmap
         }
     };
 
-    typedef std::vector<ImageContext*> vecImageCtx;
+    typedef std::vector<std::unique_ptr<ImageContext>> vecImageCtx;
 
     //
     // Image mapper
@@ -76,7 +76,7 @@ namespace ds_mmap
         /*
             Unmap associated PE image from target process
         */
-        bool UnmapDll();
+        bool UnmapAllModules();
 
         /*
             Get address of function in another process
@@ -191,7 +191,7 @@ namespace ds_mmap
         ImageContext           *m_pTopImage;        // Image context information 
         ds_process::CProcess    m_TargetProcess;    // Target process manager
         int                     m_tlsIndex;         // Current static TLS index
-        void                   *pAContext;          // SxS activation context memory address
+        void                   *m_pAContext;          // SxS activation context memory address
     };
 }
 

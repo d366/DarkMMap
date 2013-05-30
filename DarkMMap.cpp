@@ -5,12 +5,14 @@ namespace ds_mmap
     CDarkMMap::CDarkMMap(DWORD pid)
         : m_pTopImage(nullptr)
         , m_tlsIndex(0)
+        , m_pAContext(nullptr)
     {
         m_TargetProcess.Attach(pid);
     }
 
     CDarkMMap::~CDarkMMap(void)
     {
+        UnmapAllModules();
     }
 
     /*
@@ -75,6 +77,7 @@ namespace ds_mmap
         // Load and parse image
         if(!m_pTopImage->Image.Project(path) || !m_pTopImage->ImagePE.Parse(m_pTopImage->Image))
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -82,6 +85,7 @@ namespace ds_mmap
         // Open target process and create thread for code execution
         if(m_TargetProcess.Core.CreateWorkerThread() != ERROR_SUCCESS)
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -93,6 +97,7 @@ namespace ds_mmap
         // Already loaded
         if(HMODULE hMod = m_TargetProcess.Modules.GetModuleAddress(m_pTopImage->FileName.c_str()))
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return hMod;
         }
@@ -103,6 +108,7 @@ namespace ds_mmap
         DWORD dwResult = m_TargetProcess.Core.Allocate(m_pTopImage->ImagePE.ImageSize(), m_pTopImage->pTargetBase);
         if(dwResult != ERROR_SUCCESS && dwResult != ERROR_IMAGE_NOT_AT_BASE)
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -123,6 +129,7 @@ namespace ds_mmap
         // Core image mapping operations
         if(!CopyImage() || !RelocateImage())
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -136,6 +143,7 @@ namespace ds_mmap
         // Import tables
         if(!ResolveImport() || (!(flags & NoDelayLoad) && !ResolveDelayImport()))
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -147,6 +155,7 @@ namespace ds_mmap
         if(/*m_TargetProcess.DisabeDEP() != ERROR_SUCCESS &&*/
             !(m_pTopImage->flags & NoExceptions) && !EnableExceptions())
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -155,6 +164,7 @@ namespace ds_mmap
         m_pTopImage->ImagePE.GetTLSCallbacks(m_pTopImage->pTargetBase, m_pTopImage->tlsCallbacks);
         if(!InitStaticTLS() || !RunTLSInitializers(DLL_PROCESS_ATTACH))
         {
+            delete m_pTopImage;
             m_pTopImage = pOldImage;
             return 0;
         }
@@ -176,17 +186,21 @@ namespace ds_mmap
         m_Images.emplace_back(m_pTopImage);
         m_pTopImage = pOldImage;
 
+        // Last module was mapped
+        /*if(m_pTopImage == nullptr)
+            m_TargetProcess.Core.TerminateWorkerThread();*/
+
         return (HMODULE)m_Images.back()->pTargetBase;
     }
 
     /*
         Unmap associated PE image and it's dependencies from target process
     */
-    bool CDarkMMap::UnmapDll()
+    bool CDarkMMap::UnmapAllModules()
     {
         for (auto iter = m_Images.rbegin(); iter != m_Images.rend(); iter++)
         {
-            m_pTopImage = *iter;
+            m_pTopImage = iter->get();
 
             RunTLSInitializers(DLL_PROCESS_DETACH);
             CallEntryPoint(DLL_PROCESS_DETACH);
@@ -198,12 +212,16 @@ namespace ds_mmap
             if(!(m_pTopImage->flags & NoExceptions))
                 DisableExceptions();
 
-            // Free resources
-            m_TargetProcess.Core.TerminateWorkerThread();
+            // Free memory
             m_TargetProcess.Core.Free(m_pTopImage->pTargetBase);
 
             m_TargetProcess.Modules.RemoveManualModule(m_pTopImage->FilePath.filename());
         }        
+
+        // Terminate worker thread
+        m_TargetProcess.Core.TerminateWorkerThread();
+
+        m_Images.clear();
 
         return true;
     }
@@ -348,7 +366,7 @@ namespace ds_mmap
                 if(m_pTopImage->flags & ManualImports)
                     hMod = MapDll(strDll, newFlags);
                 else
-                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), pAContext);
+                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), m_pAContext);
 
                 if(!hMod)
                 {
@@ -447,7 +465,7 @@ namespace ds_mmap
                 if(m_pTopImage->flags & ManualImports)
                     hMod = MapDll(strDll, newFlags);
                 else
-                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), pAContext);
+                    hMod = m_TargetProcess.Modules.SimpleInject(strDll.c_str(), m_pAContext);
 
                 if(!hMod)
                     continue;      
@@ -656,11 +674,11 @@ namespace ds_mmap
         ah.GenPrologue();
 
         // ActivateActCtx
-        if(pAContext)
+        if(m_pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)pAContext);
+            a.mov(AsmJit::nax, (size_t)m_pAContext);
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
-            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)pAContext + sizeof(HANDLE)});
+            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)m_pAContext + sizeof(HANDLE)});
         }
 
         for (auto& pCallback : m_pTopImage->tlsCallbacks)
@@ -668,9 +686,9 @@ namespace ds_mmap
             ah.GenCall(pCallback, {(size_t)m_pTopImage->pTargetBase, dwReason, NULL});
 
         // DeactivateActCtx
-        if(pAContext)
+        if(m_pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)pAContext + sizeof(HANDLE));
+            a.mov(AsmJit::nax, (size_t)m_pAContext + sizeof(HANDLE));
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
             ah.GenCall(&DeactivateActCtx, {0, AsmJit::nax});
         }
@@ -737,20 +755,20 @@ namespace ds_mmap
         ah.GenPrologue();
 
         // ActivateActCtx
-        if(pAContext)
+        if(m_pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)pAContext);
+            a.mov(AsmJit::nax, (size_t)m_pAContext);
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
-            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)pAContext + sizeof(HANDLE)});
+            ah.GenCall(&ActivateActCtx, {AsmJit::nax, (size_t)m_pAContext + sizeof(HANDLE)});
         }
 
         // DllMain(pTopImage->pTargetBase, DLL_PROCESS_ATTACH, NULL)
         ah.GenCall(m_pTopImage->EntryPoint, {(size_t)m_pTopImage->pTargetBase, dwReason, NULL});
 
         // DeactivateActCtx
-        if(pAContext)
+        if(m_pAContext)
         {
-            a.mov(AsmJit::nax, (size_t)pAContext + sizeof(HANDLE));
+            a.mov(AsmJit::nax, (size_t)m_pAContext + sizeof(HANDLE));
             a.mov(AsmJit::nax, AsmJit::dword_ptr(AsmJit::nax));
             ah.GenCall(&DeactivateActCtx, {0, AsmJit::nax});
         }
@@ -786,33 +804,33 @@ namespace ds_mmap
         size_t   result = 0;
         ACTCTX   act    = {0};
 
-        m_TargetProcess.Core.Allocate(512, pAContext);
+        m_TargetProcess.Core.Allocate(512, m_pAContext);
 
         act.cbSize          = sizeof(act);
         act.dwFlags         = ACTCTX_FLAG_RESOURCE_NAME_VALID;
-        act.lpSource        = (LPCWSTR)((SIZE_T)pAContext + sizeof(HANDLE) + sizeof(act));
+        act.lpSource        = (LPCWSTR)((SIZE_T)m_pAContext + sizeof(HANDLE) + sizeof(act));
         act.lpResourceName  = MAKEINTRESOURCE(id);
 
         ah.GenPrologue();
 
         // CreateActCtx(&act)
-        ah.GenCall(&CreateActCtx, {(size_t)pAContext + sizeof(HANDLE)});
+        ah.GenCall(&CreateActCtx, {(size_t)m_pAContext + sizeof(HANDLE)});
 
         // pTopImage->pAContext = CreateActCtx(&act)
-        a.mov(AsmJit::ndx, (size_t)pAContext);
+        a.mov(AsmJit::ndx, (size_t)m_pAContext);
         a.mov(AsmJit::sysint_ptr(AsmJit::ndx), AsmJit::nax);
 
         ah.SaveRetValAndSignalEvent();
         ah.GenEpilogue();
 
-        m_TargetProcess.Core.Write((BYTE*)pAContext + sizeof(HANDLE), sizeof(act), &act);
-        m_TargetProcess.Core.Write((BYTE*)pAContext + sizeof(HANDLE) + sizeof(act), 
+        m_TargetProcess.Core.Write((BYTE*)m_pAContext + sizeof(HANDLE), sizeof(act), &act);
+        m_TargetProcess.Core.Write((BYTE*)m_pAContext + sizeof(HANDLE) + sizeof(act), 
             (m_pTopImage->FilePath.string().length() + 1)*sizeof(TCHAR) , (void*)m_pTopImage->FilePath.string().c_str());
 
         if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS || (HANDLE)result == INVALID_HANDLE_VALUE)
         {
-            if(m_TargetProcess.Core.Free(pAContext) == ERROR_SUCCESS)
-                pAContext = nullptr;
+            if(m_TargetProcess.Core.Free(m_pAContext) == ERROR_SUCCESS)
+                m_pAContext = nullptr;
 
             SetLastError(err::mapping::CantCreateActx);
             return false;
@@ -826,10 +844,10 @@ namespace ds_mmap
     */
     bool CDarkMMap::FreeActx()
     {
-        if(pAContext)
+        if(m_pAContext)
         {
-            m_TargetProcess.Core.Free(pAContext);
-            pAContext = nullptr;
+            m_TargetProcess.Core.Free(m_pAContext);
+            m_pAContext = nullptr;
         }
 
         return true;

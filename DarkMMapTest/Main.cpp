@@ -86,9 +86,9 @@ int _tmain(int /*argc*/, _TCHAR* /*argv[]*/)
     wchar_t* path90 = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll6490.dll";
     //wchar_t* path = L"C:\\windows\\system32\\dxcpl.exe";
 #else
-    //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll.dll";
+    wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll.dll";
     wchar_t *path90 = L"..\\DummyDll90.dll";
-    wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\ImgSearch\\Release\\ImgSearch.exe";
+    //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\ImgSearch\\Release\\ImgSearch.exe";
     //wchar_t* path = L"D:\\Games\\World of Warcraft\\Wow.exe";
     //wchar_t* path = L"C:\\windows\\system32\\cmd.exe";
 #endif
@@ -110,7 +110,7 @@ int _tmain(int /*argc*/, _TCHAR* /*argv[]*/)
 
     //FreeLibrary(mod);
 
-    if((mod = mapperRemote.MapDll(path, (ds_mmap::eLoadFlags)(ds_mmap::CreateLdrRef | ds_mmap::ManualImports | ds_mmap::NoDelayLoad))) != 0
+    if((mod = mapper.MapDll(path, (ds_mmap::eLoadFlags)(ds_mmap::CreateLdrRef | ds_mmap::ManualImports | ds_mmap::NoDelayLoad))) != 0
         /*&& mapper.MapDll(path90, ds_mmap::ManualImports) != 0*/)
     {
         //mod = GetModuleHandle(L"DummyDll.dll");
@@ -124,7 +124,7 @@ int _tmain(int /*argc*/, _TCHAR* /*argv[]*/)
         //if(proc)
             //proc();
 
-        mapperRemote.UnmapDll();
+        mapper.UnmapAllModules();
     }
     else
     {
