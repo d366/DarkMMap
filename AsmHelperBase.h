@@ -4,8 +4,8 @@
 
 #pragma warning( disable : 4100 4244 4245 4127 )
 
-#include "../AsmJit/AsmJit/Assembler.h"
-#include "../AsmJit/AsmJit/MemoryManager.h"
+#include "AsmJit/AsmJit/Assembler.h"
+#include "AsmJit/AsmJit/MemoryManager.h"
 
 #pragma warning( default : 4100 4244 4245 4127 )
 

@@ -158,6 +158,7 @@ namespace ds_mmap
             // Assembly code for VectoredHandler64
             // 0x10 - EXCEPTION_RECORD.ExceptionAddress
             // 0x20 - EXCEPTION_RECORD.ExceptionInformation[0]
+            // 0x30 - EXCEPTION_RECORD.ExceptionInformation[2]
             // 0x38 - EXCEPTION_RECORD.ExceptionInformation[3]
             //
             ea.mov(AsmJit::rax, qword_ptr(AsmJit::rcx));

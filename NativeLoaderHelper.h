@@ -56,7 +56,7 @@ namespace ds_mmap
 
             /*
             */
-            void InsertMemModuleNode(void* pNode);
+            void InsertMemModuleNode( PLIST_ENTRY pNodeLink );
 
             /*
             */

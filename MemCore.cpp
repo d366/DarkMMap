@@ -13,16 +13,23 @@ namespace ds_mmap
             , m_hWaitEvent(NULL)
             , m_pWorkerCode(nullptr)
             , m_pW8DllBase(nullptr)
+            , m_pCodecave(nullptr)
+            , m_codeSize(0)
         {
         }
 
         CMemCore::~CMemCore(void)
         {
+            TerminateWorkerThread();
+
             if(m_hProcess)
                 CloseHandle(m_hProcess);
 
             if(m_hMainThd)
                 CloseHandle(m_hMainThd);
+
+            if(m_pCodecave)
+                Free(m_pCodecave);
         }
 
         /*
@@ -174,27 +181,31 @@ namespace ds_mmap
         */
         DWORD CMemCore::RemoteCall( PVOID pCode, size_t size, size_t& callResult, PVOID pArg /*= NULL*/ )
         {
-            DWORD dwResult  = ERROR_SUCCESS;
-            void *pCodecave = NULL;
+            // Allocate new codecave
+            if(!m_pCodecave)
+            {
+                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
+                    return GetLastError();
 
-            //Create codecave
-            Allocate(size, pCodecave);
+                m_codeSize = size;
+            }
+            // Reallocate for new size
+            else if(size > m_codeSize)
+            {
+                Free(m_pCodecave);
+                m_pCodecave = nullptr;
+
+                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
+                    return GetLastError();
+
+                m_codeSize = size;
+            }
 
             //Write code into process
-            if(Write(pCodecave, size, pCode) != ERROR_SUCCESS)
-            {
-                if(pCodecave)
-                    Free(pCodecave);
-
+            if(Write(m_pCodecave, size, pCode) != ERROR_SUCCESS)
                 return GetLastError();
-            }
     
-            dwResult = RemoteCallDirect(pCodecave, pArg, callResult);
-
-            if(pCodecave)
-                Free(pCodecave);
-
-            return dwResult;
+            return RemoteCallDirect(m_pCodecave, pArg, callResult);
         }
 
 
@@ -235,15 +246,19 @@ namespace ds_mmap
             RETURN:
                 Error code
         */
-        bool CMemCore::CreateAPCEvent()
+        bool CMemCore::CreateAPCEvent( DWORD threadID )
         {
             AsmJit::Assembler a;
             AsmJitHelper ah(a);
 
-            size_t dwResult     = ERROR_SUCCESS;
-            void *pCodecave     = NULL;
-            LPWSTR pEventName   = L"_MMapEvent_0x54";       // TODO: randomize name
-            size_t len          = (wcslen(pEventName) + 1) * sizeof(wchar_t);
+            size_t dwResult        = ERROR_SUCCESS;
+            void *pCodecave        = NULL;
+            wchar_t pEventName[64] = {0};
+            size_t len;
+
+            // Generate event name
+            swprintf_s(pEventName, ARRAYSIZE(pEventName), L"_MMapEvent_0x%x", threadID);
+            len = (wcslen(pEventName) + 1) * sizeof(wchar_t);
 
             Allocate(a.getCodeSize() + len, pCodecave);
 
@@ -278,6 +293,12 @@ namespace ds_mmap
             if(pCodecave)
                 Free(pCodecave);
 
+            if(dwResult == NULL || m_hWaitEvent == NULL)
+            {
+                SetLastError(ERROR_OBJECT_NOT_FOUND);
+                return false;
+            }
+
             return true;
         }
 
@@ -307,6 +328,8 @@ namespace ds_mmap
             //
             if(!m_hWorkThd)
             {
+                DWORD thdID = 0;
+
                 //
                 // Create codecave
                 //
@@ -334,9 +357,10 @@ namespace ds_mmap
                     return GetLastError();
                 }
 
-                m_hWorkThd = CreateRemoteThread(m_hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)((uint8_t*)m_pWorkerCode + space), m_pWorkerCode, 0, NULL);
+                m_hWorkThd = CreateRemoteThread(m_hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)((uint8_t*)m_pWorkerCode + space), m_pWorkerCode, 0, &thdID);
 
-                if (!m_hWorkThd || !CreateAPCEvent())
+                // Create synchronization event
+                if (!m_hWorkThd || !CreateAPCEvent(thdID))
                     dwResult = GetLastError();
             }
 
@@ -384,18 +408,29 @@ namespace ds_mmap
         DWORD CMemCore::ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult )
         {
             DWORD dwResult  = ERROR_SUCCESS;
-            void *pCodecave = NULL;
 
-            if(Allocate(size, pCodecave) != ERROR_SUCCESS)
-                return GetLastError();
-
-            if(Write(pCodecave, size, pCode) != ERROR_SUCCESS)
+            // Allocate new codecave
+            if(!m_pCodecave)
             {
-                if(pCodecave)
-                    Free(pCodecave);
+                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
+                    return GetLastError();
 
-                return GetLastError();
+                m_codeSize = size;
             }
+            // Reallocate for new size
+            else if(size > m_codeSize)
+            {
+                Free(m_pCodecave);
+                m_pCodecave = nullptr;
+
+                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
+                    return GetLastError();
+
+                m_codeSize = size;
+            }
+
+            if(Write(m_pCodecave, size, pCode) != ERROR_SUCCESS)
+                return GetLastError();
 
             // Create thread if needed
             if(!m_hWorkThd)
@@ -405,15 +440,28 @@ namespace ds_mmap
                 ResetEvent(m_hWaitEvent);
 
             // Execute code in thread context
-            QueueUserAPC((PAPCFUNC)pCodecave, m_hWorkThd, (ULONG_PTR)m_pWorkerCode);
+            QueueUserAPC((PAPCFUNC)m_pCodecave, m_hWorkThd, (ULONG_PTR)m_pWorkerCode);
 
             dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
             callResult = Read<size_t>((size_t)m_pWorkerCode);
 
-            if(pCodecave)
-                Free(pCodecave);
-
             return dwResult;
+        }
+
+        /*
+            Retrieve process PEB address
+
+            RETURN:
+                PEB address
+        */
+        PPEB CMemCore::GetPebBase()
+        {
+            PROCESS_BASIC_INFORMATION pbi = {0};
+            ULONG bytes = 0;
+
+            NtQueryInformationProcess(m_hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &bytes);
+
+            return pbi.PebBaseAddress;
         }
 
         /*void* CMemCore::GetLdrpModuleBaseAddressIndex()

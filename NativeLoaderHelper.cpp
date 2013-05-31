@@ -95,10 +95,11 @@ namespace ds_mmap
                 ULONG hash = 0;
                 _LDR_DATA_TABLE_ENTRY_W7 *pEntry = InitW7Node((void*)hMod, ImageSize, DllBaseName, DllBasePath, hash);
 
-                // 
                 // Insert into LdrpHashTable
-                //
                 InsertHashNode((PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, HashLinks)), hash, NT_LDRP_HASH_TABLE_W7);
+
+                // Insert into LDR list
+                InsertMemModuleNode((PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, InLoadOrderLinks)));
             }
 
             return false;
@@ -293,11 +294,21 @@ namespace ds_mmap
 
         /*
         */
-        void CNtLdr::InsertMemModuleNode(void* /*pNode*/)
+        void CNtLdr::InsertMemModuleNode( PLIST_ENTRY pNodeLink )
         {
             //
             // STUB
             //
+            PPEB pPeb = m_memory.GetPebBase();
+
+            if(pPeb)
+            {
+                PPEB_LDR_DATA pLdr = m_memory.Read<PPEB_LDR_DATA>((uint8_t*)pPeb + FIELD_OFFSET(PEB, Ldr));
+                
+                // Insert into pLdr->InMemoryOrderModuleList
+                if(pLdr)
+                    InsertTailList((PLIST_ENTRY)((uint8_t*)pLdr + FIELD_OFFSET(PEB_LDR_DATA, InMemoryOrderModuleList)), pNodeLink);
+            }
         }
 
         

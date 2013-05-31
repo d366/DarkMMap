@@ -218,6 +218,14 @@ namespace ds_mmap
                     Error code
             */
             DWORD ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult );
+
+            /*
+                Retrieve process PEB address
+
+                RETURN:
+                    PEB address
+            */
+            PPEB GetPebBase();
     
         private:
             /*
@@ -226,7 +234,7 @@ namespace ds_mmap
                 RETURN:
                     Error code
             */
-            bool CreateAPCEvent();
+            bool CreateAPCEvent(DWORD threadID);
 
             /*void* GetLdrpModuleBaseAddressIndex();
             int FindBytes(const uint8_t *val, size_t valSize, std::vector<size_t> &out, size_t startAddress, size_t regionSize);*/
@@ -240,6 +248,8 @@ namespace ds_mmap
             DWORD   m_pid;              // Process PID
             void*   m_pWorkerCode;      // Worker thread address space
             void*   m_pW8DllBase;       // Windows 8 module tree root node
+            void*   m_pCodecave;        // Codecave for code execution
+            size_t  m_codeSize;         // Current codecave size
         };
     }
 }
