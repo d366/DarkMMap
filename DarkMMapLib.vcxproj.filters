@@ -16,6 +16,9 @@
     <Filter Include="Memory\AsmHelpers">
       <UniqueIdentifier>{1866de54-d6bd-483d-b81c-074f03863c0c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Memory\Process\Native">
+      <UniqueIdentifier>{675b47c0-a2ee-4d3a-b5fa-74fa2c1d0a7b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -54,10 +57,10 @@
     </ClInclude>
     <ClInclude Include="DarkMMap.h" />
     <ClInclude Include="NtStructures.h">
-      <Filter>Memory\Process</Filter>
+      <Filter>Memory\Process\Native</Filter>
     </ClInclude>
     <ClInclude Include="NativeLoaderHelper.h">
-      <Filter>Memory\Process</Filter>
+      <Filter>Memory\Process\Native</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -91,7 +94,7 @@
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="DarkMMap.cpp" />
     <ClCompile Include="NativeLoaderHelper.cpp">
-      <Filter>Memory\Process</Filter>
+      <Filter>Memory\Process\Native</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

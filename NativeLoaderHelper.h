@@ -30,6 +30,12 @@ namespace ds_mmap
                              _In_   ULONG HashAlgorithm,
                              _Out_  PULONG HashValue );
 
+		extern "C"
+        NTSYSAPI 
+        WCHAR 
+        NTAPI 
+		RtlUpcaseUnicodeChar(WCHAR chr);
+
         class CNtLdr
         {
         public:
@@ -56,7 +62,7 @@ namespace ds_mmap
 
             /*
             */
-            void InsertMemModuleNode( PLIST_ENTRY pNodeLink );
+			void InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink, size_t varOffset );
 
             /*
             */

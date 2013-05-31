@@ -113,13 +113,13 @@ int _tmain(int /*argc*/, _TCHAR* /*argv[]*/)
     if((mod = mapper.MapDll(path, (ds_mmap::eLoadFlags)(ds_mmap::CreateLdrRef | ds_mmap::ManualImports | ds_mmap::NoDelayLoad))) != 0
         /*&& mapper.MapDll(path90, ds_mmap::ManualImports) != 0*/)
     {
-        //mod = GetModuleHandle(L"DummyDll.dll");
+        mod = GetModuleHandle(L"DummyDll.dll");
         //mod = GetModuleHandle(L"ClrDummy.dll");
-        //int (*proc)(char*) = (int (*)(char*))GetProcAddress(mod, "fnDummyDll");
+        int (*proc)(char*) = (int (*)(char*))GetProcAddress(mod, "fnDummyDll");
         //void (*proc)(void) = (void (*)(void))GetProcAddress(mod, "Init");
 
-        //if(proc)
-            //proc("Test");
+        if(proc)
+            proc("Test");
 
         //if(proc)
             //proc();

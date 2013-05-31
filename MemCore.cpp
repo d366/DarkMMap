@@ -412,7 +412,7 @@ namespace ds_mmap
             // Allocate new codecave
             if(!m_pCodecave)
             {
-                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
+                if(Allocate((size > 0x1000) ? size : 0x1000, m_pCodecave) != ERROR_SUCCESS)
                     return GetLastError();
 
                 m_codeSize = size;
@@ -444,6 +444,9 @@ namespace ds_mmap
 
             dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
             callResult = Read<size_t>((size_t)m_pWorkerCode);
+
+			// Ensure APC function fully returns
+			Sleep(1);
 
             return dwResult;
         }

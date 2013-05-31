@@ -222,6 +222,7 @@ namespace ds_mmap
         m_TargetProcess.Core.TerminateWorkerThread();
 
         m_Images.clear();
+		m_pTopImage = nullptr;
 
         return true;
     }
@@ -539,9 +540,9 @@ namespace ds_mmap
             if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS)
                 return false;
 
-            if(m_pTopImage->flags & CreateLdrRef)
+            /*if(m_pTopImage->flags & CreateLdrRef)
                 return true;
-            else
+            else*/
                 return (m_TargetProcess.CreateVEH((size_t)m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize()) == ERROR_SUCCESS);
         }
         else
@@ -575,9 +576,9 @@ namespace ds_mmap
             if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS)
                 return false;
 
-            if(m_pTopImage->flags & CreateLdrRef)
+            /*if(m_pTopImage->flags & CreateLdrRef)
                 return true;
-            else
+            else*/
                 return (m_TargetProcess.RemoveVEH() == ERROR_SUCCESS);
         }
         else
