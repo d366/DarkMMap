@@ -445,8 +445,8 @@ namespace ds_mmap
             dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
             callResult = Read<size_t>((size_t)m_pWorkerCode);
 
-			// Ensure APC function fully returns
-			Sleep(1);
+            // Ensure APC function fully returns
+            Sleep(1);
 
             return dwResult;
         }

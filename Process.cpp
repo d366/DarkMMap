@@ -7,7 +7,7 @@ namespace ds_mmap
         // taken from CRT include <Ehdata.h>
         #define EH_MAGIC_NUMBER1        0x19930520    
         #define EH_PURE_MAGIC_NUMBER1   0x01994000
-        #define EH_EXCEPTION_NUMBER	    ('msc' | 0xE0000000)
+        #define EH_EXCEPTION_NUMBER        ('msc' | 0xE0000000)
 
         void*  CProcess::pImageBase = nullptr;
         size_t CProcess::imageSize  = 0;

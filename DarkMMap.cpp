@@ -222,7 +222,7 @@ namespace ds_mmap
         m_TargetProcess.Core.TerminateWorkerThread();
 
         m_Images.clear();
-		m_pTopImage = nullptr;
+        m_pTopImage = nullptr;
 
         return true;
     }

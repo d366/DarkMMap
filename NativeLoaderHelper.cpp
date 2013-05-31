@@ -95,27 +95,27 @@ namespace ds_mmap
                 ULONG hash = 0;
                 _LDR_DATA_TABLE_ENTRY_W7 *pEntry = InitW7Node((void*)hMod, ImageSize, DllBaseName, DllBasePath, hash);
 
-				size_t hashTblOffset   = 0;
-				size_t moduleTblOffset = 0;
+                size_t hashTblOffset   = 0;
+                size_t moduleTblOffset = 0;
 
-				if(wcsstr(verinfo.szCSDVersion, L"Service Pack 1") != nullptr)                
-				{
-					hashTblOffset   = NT_LDRP_HASH_TABLE_W7_SP1;
-					moduleTblOffset = NT_LDRP_MODULE_LIST_W7_SP1;
-				}
-				else
-				{
-					hashTblOffset   = NT_LDRP_HASH_TABLE_W7;
-					moduleTblOffset = NT_LDRP_MODULE_LIST_W7;
-				}
+                if(wcsstr(verinfo.szCSDVersion, L"Service Pack 1") != nullptr)                
+                {
+                    hashTblOffset   = NT_LDRP_HASH_TABLE_W7_SP1;
+                    moduleTblOffset = NT_LDRP_MODULE_LIST_W7_SP1;
+                }
+                else
+                {
+                    hashTblOffset   = NT_LDRP_HASH_TABLE_W7;
+                    moduleTblOffset = NT_LDRP_MODULE_LIST_W7;
+                }
 
-				// Insert into LdrpHashTable
-				InsertHashNode((PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, HashLinks)), hash, hashTblOffset);
+                // Insert into LdrpHashTable
+                InsertHashNode((PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, HashLinks)), hash, hashTblOffset);
 
                 // Insert into LDR list
                 InsertMemModuleNode((PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, InMemoryOrderLinks)), 
-									(PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, InLoadOrderLinks)),
-									moduleTblOffset);
+                                    (PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, InLoadOrderLinks)),
+                                    moduleTblOffset);
             }
 
             return false;
@@ -263,16 +263,16 @@ namespace ds_mmap
                 // pEntry->SizeOfImage = ImageSize;
                 m_memory.Write<ULONG>((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, SizeOfImage), (ULONG)ImageSize);
 
-				// pEntry->LoadCount = -1;
-				m_memory.Write<short>((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, LoadCount), -1);
+                // pEntry->LoadCount = -1;
+                m_memory.Write<short>((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, LoadCount), -1);
 
                 // Dll name
                 RtlInitUnicodeString(&strLocal, dllname.c_str());
 
-				// Name hash
-				outHash = 0;
-				for(auto& chr : dllname)
-					outHash += 0x1003F * (unsigned short)RtlUpcaseUnicodeChar(chr);
+                // Name hash
+                outHash = 0;
+                for(auto& chr : dllname)
+                    outHash += 0x1003F * (unsigned short)RtlUpcaseUnicodeChar(chr);
 
                 // Write into buffer
                 strLocal.Buffer = (PWSTR)StringBuf;
@@ -317,8 +317,8 @@ namespace ds_mmap
 
         /*
         */
-		void CNtLdr::InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink, size_t varOffset )
-		{
+        void CNtLdr::InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink, size_t varOffset )
+        {
             //
             // STUB
             //
@@ -332,13 +332,13 @@ namespace ds_mmap
                 if(pLdr)
                     InsertTailList((PLIST_ENTRY)((uint8_t*)pLdr + FIELD_OFFSET(PEB_LDR_DATA, InMemoryOrderModuleList)), pNodeMemoryOrderLink);
 
-				size_t listAddress = (size_t)GetModuleHandle(L"ntdll.dll") + varOffset;
+                size_t listAddress = (size_t)GetModuleHandle(L"ntdll.dll") + varOffset;
 
-				// Module list
-				PLIST_ENTRY pModuleList = m_memory.Read<PLIST_ENTRY>(listAddress);
+                // Module list
+                PLIST_ENTRY pModuleList = m_memory.Read<PLIST_ENTRY>(listAddress);
 
-				if(pModuleList)
-					InsertTailList(pModuleList, pNodeLoadOrderLink);
+                if(pModuleList)
+                    InsertTailList(pModuleList, pNodeLoadOrderLink);
             }
         }
 

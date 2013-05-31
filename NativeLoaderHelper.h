@@ -17,9 +17,9 @@ namespace ds_mmap
                                                  IN OUT PUNICODE_STRING StaticString,
                                                  IN OUT PUNICODE_STRING DynamicString,
                                                  IN OUT PUNICODE_STRING *NewName,
-                                                 IN PULONG 	NewFlags,
+                                                 IN PULONG     NewFlags,
                                                  IN PSIZE_T FileNameSize,
-                                                 IN PSIZE_T RequiredLength);	
+                                                 IN PSIZE_T RequiredLength);    
 
         extern "C"
         NTSYSAPI 
@@ -30,11 +30,11 @@ namespace ds_mmap
                              _In_   ULONG HashAlgorithm,
                              _Out_  PULONG HashValue );
 
-		extern "C"
+        extern "C"
         NTSYSAPI 
         WCHAR 
         NTAPI 
-		RtlUpcaseUnicodeChar(WCHAR chr);
+        RtlUpcaseUnicodeChar(WCHAR chr);
 
         class CNtLdr
         {
@@ -62,7 +62,7 @@ namespace ds_mmap
 
             /*
             */
-			void InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink, size_t varOffset );
+            void InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink, size_t varOffset );
 
             /*
             */
