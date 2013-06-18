@@ -16,8 +16,11 @@
     <Filter Include="Memory\AsmHelpers">
       <UniqueIdentifier>{1866de54-d6bd-483d-b81c-074f03863c0c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Memory\Process\Native">
+    <Filter Include="Memory\Native">
       <UniqueIdentifier>{675b47c0-a2ee-4d3a-b5fa-74fa2c1d0a7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory\File">
+      <UniqueIdentifier>{6edc42b6-7141-46a4-adc5-fedb04a8b611}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -27,9 +30,6 @@
     <ClInclude Include="targetver.h">
       <Filter>!Common</Filter>
     </ClInclude>
-    <ClInclude Include="FileProjection.h">
-      <Filter>Memory</Filter>
-    </ClInclude>
     <ClInclude Include="Process.h">
       <Filter>Memory\Process</Filter>
     </ClInclude>
@@ -38,9 +38,6 @@
     </ClInclude>
     <ClInclude Include="LDasm.h">
       <Filter>Memory\LDAsm</Filter>
-    </ClInclude>
-    <ClInclude Include="PEManger.h">
-      <Filter>Memory</Filter>
     </ClInclude>
     <ClInclude Include="AsmHelper32.h">
       <Filter>Memory\AsmHelpers</Filter>
@@ -57,16 +54,22 @@
     </ClInclude>
     <ClInclude Include="DarkMMap.h" />
     <ClInclude Include="NtStructures.h">
-      <Filter>Memory\Process\Native</Filter>
+      <Filter>Memory\Native</Filter>
     </ClInclude>
     <ClInclude Include="NativeLoaderHelper.h">
-      <Filter>Memory\Process\Native</Filter>
+      <Filter>Memory\Native</Filter>
+    </ClInclude>
+    <ClInclude Include="FileProjection.h">
+      <Filter>Memory\File</Filter>
+    </ClInclude>
+    <ClInclude Include="PEManger.h">
+      <Filter>Memory\File</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageNET.h">
+      <Filter>Memory\File</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FileProjection.cpp">
-      <Filter>Memory</Filter>
-    </ClCompile>
     <ClCompile Include="Process.cpp">
       <Filter>Memory\Process</Filter>
     </ClCompile>
@@ -75,9 +78,6 @@
     </ClCompile>
     <ClCompile Include="LDasm.c">
       <Filter>Memory\LDAsm</Filter>
-    </ClCompile>
-    <ClCompile Include="PEManger.cpp">
-      <Filter>Memory</Filter>
     </ClCompile>
     <ClCompile Include="AsmHelper32.cpp">
       <Filter>Memory\AsmHelpers</Filter>
@@ -94,7 +94,16 @@
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="DarkMMap.cpp" />
     <ClCompile Include="NativeLoaderHelper.cpp">
-      <Filter>Memory\Process\Native</Filter>
+      <Filter>Memory\Native</Filter>
+    </ClCompile>
+    <ClCompile Include="FileProjection.cpp">
+      <Filter>Memory\File</Filter>
+    </ClCompile>
+    <ClCompile Include="PEManger.cpp">
+      <Filter>Memory\File</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageNET.cpp">
+      <Filter>Memory\File</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

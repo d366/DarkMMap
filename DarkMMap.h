@@ -4,6 +4,7 @@
 #include "FileProjection.h"
 #include "PEManger.h"
 #include "Process.h"
+#include "ImageNET.h"
 
 #include <map>
 
@@ -72,6 +73,11 @@ namespace ds_mmap
         */
         HMODULE MapDll( const std::wstring& path, eLoadFlags flags = NoFlags );
         HMODULE MapDll( const std::string&  path, eLoadFlags flags = NoFlags );
+
+        /*
+            Map pure managed dll
+        */
+        HMODULE MapPureManaged();
 
         /*
             Unmap associated PE image from target process
@@ -186,6 +192,7 @@ namespace ds_mmap
         */
         DWORD GetSectionProt(DWORD characteristics);
 
+        
     private:
         vecImageCtx             m_Images;           // Mapped images
         ImageContext           *m_pTopImage;        // Image context information 

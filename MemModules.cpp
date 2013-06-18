@@ -203,6 +203,7 @@ namespace ds_mmap
             //
             // Perform search accordingly to Windows Image loader search order 
             // 1. KnownDlls
+            //
             HKEY hKey = NULL;
             LRESULT res = 0;
             res = RegOpenKey(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs", &hKey);
@@ -388,7 +389,7 @@ namespace ds_mmap
             RETURN:
                 Module address
                 0 - if not found
-                */
+        */
         HMODULE CMemModules::GetModuleAddress( const char* modname, bool skipManualModules/* = false*/ )
         {
             wchar_t wPath[MAX_PATH] = {0};

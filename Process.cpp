@@ -61,6 +61,8 @@ namespace ds_mmap
 
             Core.m_pid        = pid;
             Core.m_hProcess   = (hProcess != NULL) ? hProcess : OpenProcess(dwAccess, FALSE, pid);
+
+            Modules.NtLoader().Init();
         }
 
         /*
@@ -150,7 +152,6 @@ namespace ds_mmap
 
         #ifdef _M_AMD64 
             // Resolve compiler incremental table address, if any
-            //void *pFunc = ResolveJmp(&CProcess::VectoredHandler64);
             AsmJit::Assembler ea;
             AsmJit::Label lExit = ea.newLabel();
 

@@ -6,6 +6,7 @@ namespace ds_mmap
         : m_hMapping(NULL)
         , m_hFile(INVALID_HANDLE_VALUE)
         , m_pData(nullptr)
+        , m_isPlainData(false)
         , m_hctx(INVALID_HANDLE_VALUE)
     {
     }
@@ -53,10 +54,22 @@ namespace ds_mmap
 
         if(m_hFile != INVALID_HANDLE_VALUE)
         {
+            // Try mapping as image
             m_hMapping = CreateFileMapping(m_hFile, NULL, SEC_IMAGE | PAGE_READONLY, 0, 0, NULL);
 
             if(m_hMapping && m_hMapping != INVALID_HANDLE_VALUE)
+            {
                 m_pData = MapViewOfFile(m_hMapping, FILE_MAP_READ, 0, 0, 0);
+            }
+            // Map as simple datafile
+            else
+            {
+                m_isPlainData = true;
+                m_hMapping    = CreateFileMapping(m_hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+
+                if(m_hMapping && m_hMapping != INVALID_HANDLE_VALUE)
+                    m_pData = MapViewOfFile(m_hMapping, FILE_MAP_READ, 0, 0, 0);
+            }
         }
 
         return m_pData;
@@ -121,4 +134,13 @@ namespace ds_mmap
     {
         return m_pData;
     }
+
+    /*
+        Is plain datafile
+    */
+    bool CFileProjection::isPlainData() const
+    {
+        return m_isPlainData;
+    }
+
 };

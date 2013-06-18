@@ -44,9 +44,26 @@ namespace ds_mmap
 
             /*
             */
+            bool Init();
+
+            /*
+            */
             bool CreateNTReference(HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath);
 
         private:
+
+            /*
+            */
+            bool FindLdrpHashTable ();
+
+            /*
+            */
+            bool FindLdrpModuleIndexBase ();
+
+            /*
+            */
+            bool FindLdrpModuleBase ();
+
             /*
             */
             _LDR_DATA_TABLE_ENTRY_W8* InitW8Node( void* ModuleBase, size_t ImageSize, const std::wstring& dllname, const std::wstring& dllpath, ULONG& outHash );
@@ -58,11 +75,11 @@ namespace ds_mmap
 
             /*
             */
-            void InsertHashNode(PLIST_ENTRY pNodeLink, ULONG hash, size_t VarOffset);
+            void InsertHashNode(PLIST_ENTRY pNodeLink, ULONG hash);
 
             /*
             */
-            void InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink, size_t varOffset );
+			void InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink);
 
             /*
             */
@@ -71,9 +88,13 @@ namespace ds_mmap
             /*
             */
             CNtLdr& operator=(const CNtLdr& other);
-
+            
         private:
             CMemCore& m_memory;
+
+            size_t m_LdrpHashTable;
+            size_t m_LdrpModuleIndexBase;
+            size_t m_LdrpModuleBase;
         };
     }
 }

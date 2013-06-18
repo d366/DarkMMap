@@ -7,6 +7,7 @@ namespace ds_mmap
         CPEManger::CPEManger(void)
             : m_pFileBase(nullptr)
             , m_pImageHdr(nullptr)
+            , m_isPlainData(false)
         {
         }
 
@@ -24,7 +25,7 @@ namespace ds_mmap
             RETURN:
                 Status
         */
-        bool CPEManger::Parse( const void* pFileBase )
+        bool CPEManger::Parse( const void* pFileBase, bool isPlainData )
         {
             const IMAGE_DOS_HEADER        *pDosHdr    = nullptr;
             const IMAGE_SECTION_HEADER    *pSection   = nullptr;
@@ -34,6 +35,8 @@ namespace ds_mmap
                 SetLastError(err::pe::NoFile);
                 return false;
             }
+
+            m_isPlainData = isPlainData;
 
             // Get DOS header
             m_pFileBase = pFileBase;
@@ -79,7 +82,15 @@ namespace ds_mmap
             if(m_pImageHdr->OptionalHeader.DataDirectory[index].VirtualAddress == 0)
                 return 0;
             else
-                return (size_t)m_pImageHdr->OptionalHeader.DataDirectory[index].VirtualAddress + (size_t)m_pFileBase;
+                return ResolveRvaToVA(m_pImageHdr->OptionalHeader.DataDirectory[index].VirtualAddress);
+        }
+
+        size_t CPEManger::ResolveRvaToVA( size_t Rva ) const
+        {
+            if(m_isPlainData)
+                return (size_t)ImageRvaToVa((PIMAGE_NT_HEADERS)m_pImageHdr, (PVOID)m_pFileBase, (ULONG)Rva, NULL);
+            else
+                return (size_t)m_pFileBase + Rva;
         }
 
         /*
@@ -149,6 +160,14 @@ namespace ds_mmap
         }
 
         /*
+            Size of image in memory
+        */
+        size_t CPEManger::HeadersSize() const
+        {
+            return m_pImageHdr->OptionalHeader.SizeOfHeaders;
+        }
+
+        /*
             Image base. ASLR is taken into account
         */
         size_t CPEManger::ImageBase() const
@@ -168,6 +187,21 @@ namespace ds_mmap
         const void* CPEManger::EntryPoint( const void* base ) const
         {
             return (const void*)((size_t)base + m_pImageHdr->OptionalHeader.AddressOfEntryPoint);
+        }
+
+        /*
+        */
+        bool CPEManger::IsPureManaged() const
+        {
+            IMAGE_COR20_HEADER *pCorHdr = (IMAGE_COR20_HEADER*)DirectoryAddress(IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR);
+
+            if(pCorHdr)
+            {
+                if(pCorHdr->Flags & COMIMAGE_FLAGS_ILONLY)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

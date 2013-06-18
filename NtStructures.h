@@ -2,25 +2,6 @@
 #include <windows.h>
 #include <winternl.h>
 
-// Unexported symbols offsets
-#ifdef _M_AMD64
-#define NT_LDRP_HASH_TABLE_W7       0x0
-#define NT_LDRP_HASH_TABLE_W7_SP1   0x13A940
-#define NT_LDRP_MODULE_LIST_W7      0x0
-#define NT_LDRP_MODULE_LIST_W7_SP1  0x132650
-
-#define NT_LDRP_HASH_TABLE_W8       0x13E7B0
-#define NT_LDRP_MODULE_TREE_ROOT    0x13EAA0
-#else
-#define NT_LDRP_HASH_TABLE_W7       0x0
-#define NT_LDRP_HASH_TABLE_W7_SP1   0x104800
-#define NT_LDRP_MODULE_LIST_W7      0x0
-#define NT_LDRP_MODULE_LIST_W7_SP1  0x10020C
-
-#define NT_LDRP_HASH_TABLE_W8       0xEE6C0
-#define NT_LDRP_MODULE_TREE_ROOT    0xEFA98
-#endif
-
 #pragma warning(disable : 4201)
 
 enum _LDR_DDAG_STATE
@@ -96,6 +77,19 @@ struct _LDR_DDAG_NODE
     struct _SINGLE_LIST_ENTRY CondenseLink;
     unsigned long PreorderNumber;
     unsigned long LowestLink;
+};
+
+struct _PEB_LDR_DATA_W8
+{
+    unsigned long Length;
+    unsigned char Initialized;
+    void * SsHandle;
+    _LIST_ENTRY InLoadOrderModuleList;
+    _LIST_ENTRY InMemoryOrderModuleList;
+    _LIST_ENTRY InInitializationOrderModuleList;
+    void * EntryInProgress;
+    unsigned char ShutdownInProgress;
+    void * ShutdownThreadId;
 };
 
 struct _LDR_DATA_TABLE_ENTRY_W8

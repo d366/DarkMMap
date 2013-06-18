@@ -53,12 +53,22 @@ namespace ds_mmap
                     Status
 
             */
-            bool Parse(const void* pFileBase);
+            bool Parse(const void* pFileBase, bool isPlainData);
+
+            /*
+                Remap virtual address to file address
+            */
+            size_t ResolveRvaToVA(size_t Rva) const;
 
             /*
                 Size of image in memory
             */
             size_t ImageSize() const;
+
+            /*
+                Size of headers
+            */
+            size_t HeadersSize() const;
 
             /*
                 Image base. ASLR is taken into account
@@ -119,7 +129,13 @@ namespace ds_mmap
                     0 - if directory is not present
             */
             size_t DirectorySize( int index ) const;
+
+            /*
+            */
+            bool IsPureManaged() const;
+
         private:
+            bool                                m_isPlainData;  // File mapped as plain data file
             const void                         *m_pFileBase;    // File mapping base address
             const IMAGE_NT_HEADERS             *m_pImageHdr;    // PE header info
             std::vector<IMAGE_SECTION_HEADER>   m_sections;     // Section info

@@ -19,6 +19,7 @@ namespace ds_mmap
         {
             friend class CMemModules;
             friend class CProcess;
+            friend class CNtLdr;
     
         public:
             CMemCore(void);
@@ -236,9 +237,6 @@ namespace ds_mmap
             */
             bool CreateAPCEvent(DWORD threadID);
 
-            /*void* GetLdrpModuleBaseAddressIndex();
-            int FindBytes(const uint8_t *val, size_t valSize, std::vector<size_t> &out, size_t startAddress, size_t regionSize);*/
-    
         private:
             HANDLE  m_hProcess;         // Process handle
             HANDLE  m_hMainThd;         // Process main thread handle

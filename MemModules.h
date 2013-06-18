@@ -131,6 +131,10 @@ namespace ds_mmap
             */
             void PopLocalActx( );
 
+            /*
+            */
+            CNtLdr& NtLoader() { return m_native; }
+
         private:
             CMemModules& operator = (const CMemModules&) {}
 

@@ -190,6 +190,7 @@
     <ClInclude Include="AsmHelperBase.h" />
     <ClInclude Include="Errors.h" />
     <ClInclude Include="FileProjection.h" />
+    <ClInclude Include="ImageNET.h" />
     <ClInclude Include="LDasm.h" />
     <ClInclude Include="MemCore.h" />
     <ClInclude Include="MemModules.h" />
@@ -214,6 +215,7 @@
     <ClCompile Include="DarkMMap.cpp" />
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="FileProjection.cpp" />
+    <ClCompile Include="ImageNET.cpp" />
     <ClCompile Include="LDasm.c" />
     <ClCompile Include="MemCore.cpp" />
     <ClCompile Include="MemModules.cpp" />

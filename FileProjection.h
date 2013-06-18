@@ -45,6 +45,11 @@ namespace ds_mmap
         */
         HANDLE actx() const;
 
+        /* 
+            is plain data file
+        */
+        bool isPlainData() const;
+
         /*
             Get mapping base
 
@@ -57,6 +62,7 @@ namespace ds_mmap
         HANDLE  m_hFile;        // Target file HANDLE
         HANDLE  m_hMapping;     // Memory mapping object
         void*   m_pData;        // Mapping base
+        bool    m_isPlainData;  // File mapped as plain data file
         HANDLE  m_hctx;         // Activation context
     };
 };

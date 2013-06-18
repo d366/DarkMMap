@@ -75,7 +75,7 @@ namespace ds_mmap
         m_pTopImage->flags    = flags;
 
         // Load and parse image
-        if(!m_pTopImage->Image.Project(path) || !m_pTopImage->ImagePE.Parse(m_pTopImage->Image))
+        if(!m_pTopImage->Image.Project(path) || !m_pTopImage->ImagePE.Parse(m_pTopImage->Image, m_pTopImage->Image.isPlainData()))
         {
             delete m_pTopImage;
             m_pTopImage = pOldImage;
@@ -134,6 +134,9 @@ namespace ds_mmap
             return 0;
         }
 
+        if(m_pTopImage->ImagePE.IsPureManaged())
+            return MapPureManaged();
+        
         m_TargetProcess.Modules.AddManualModule(m_pTopImage->FileName, (HMODULE)m_pTopImage->pTargetBase);
 
         // Create reference for native loader functions
@@ -171,10 +174,16 @@ namespace ds_mmap
 
         // Stupid security cookie
         InitializeCookie();
-        
-        // Entry point
-        if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)
-            CallEntryPoint(DLL_PROCESS_ATTACH);
+
+        //
+        // Handle image as pure .NET one
+        //
+        if(!m_pTopImage->ImagePE.IsPureManaged())
+        {
+            // Entry point
+            if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)
+                CallEntryPoint(DLL_PROCESS_ATTACH);
+        }        
 
         // Free local image
         m_pTopImage->Image.Release();
@@ -191,6 +200,23 @@ namespace ds_mmap
             m_TargetProcess.Core.TerminateWorkerThread();*/
 
         return (HMODULE)m_Images.back()->pTargetBase;
+    }
+
+    HMODULE CDarkMMap::MapPureManaged()
+    {
+        CImageNET netImg;
+
+        if(!netImg.Init(m_pTopImage->FilePath))
+        {
+            SetLastError(0x1337);
+            return 0;
+        }
+
+        netImg.Parse();
+
+        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+        return 0;
+        //return (HMODULE)m_pTopImage->pTargetBase;
     }
 
     /*
@@ -233,7 +259,7 @@ namespace ds_mmap
     bool CDarkMMap::CopyImage()
     {
         // offset to first section equals to header size
-        size_t dwHeaderSize = m_pTopImage->ImagePE.Sections()[0].VirtualAddress;
+        size_t dwHeaderSize = m_pTopImage->ImagePE.HeadersSize();
 
         // Copy header
         if(m_TargetProcess.Core.Write(m_pTopImage->pTargetBase, dwHeaderSize, m_pTopImage->Image.base()) != ERROR_SUCCESS)
@@ -248,7 +274,9 @@ namespace ds_mmap
         // Copy sections
         for( auto& section : sections)
         {
-            if(m_TargetProcess.Core.Write((uint8_t*)m_pTopImage->pTargetBase + section.VirtualAddress, section.Misc.VirtualSize, (BYTE*)m_pTopImage->Image.base() + section.VirtualAddress) != ERROR_SUCCESS)
+            uint8_t* pSource = (uint8_t*)m_pTopImage->ImagePE.ResolveRvaToVA(section.VirtualAddress);
+
+            if(m_TargetProcess.Core.Write((uint8_t*)m_pTopImage->pTargetBase + section.VirtualAddress, section.Misc.VirtualSize, pSource) != ERROR_SUCCESS)
                 return false;
         }
 
