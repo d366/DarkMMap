@@ -134,8 +134,8 @@ namespace ds_mmap
             return 0;
         }
 
-        if(m_pTopImage->ImagePE.IsPureManaged())
-            return MapPureManaged();
+        /*if(m_pTopImage->ImagePE.IsPureManaged())
+            return MapPureManaged();*/
         
         m_TargetProcess.Modules.AddManualModule(m_pTopImage->FileName, (HMODULE)m_pTopImage->pTargetBase);
 
@@ -272,6 +272,10 @@ namespace ds_mmap
         // Copy sections
         for( auto& section : sections)
         {
+            // Skip discardable sections
+            if(!(section.Characteristics & (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_EXECUTE)))
+                continue;
+
             uint8_t* pSource = (uint8_t*)m_pTopImage->ImagePE.ResolveRvaToVA(section.VirtualAddress);
 
             if(m_TargetProcess.Core.Write((uint8_t*)m_pTopImage->pTargetBase + section.VirtualAddress, section.Misc.VirtualSize, pSource) != ERROR_SUCCESS)
@@ -397,6 +401,7 @@ namespace ds_mmap
 
                 if(!hMod)
                 {
+                    printf("Missing import %s\n", strDll.c_str());
                     SetLastError(err::mapping::CantResolveImport);
                     return false;
                 }            
