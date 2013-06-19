@@ -77,3 +77,4 @@ version.txt
 !Crypto.lib
 !zlib1.dll
 !zdll.lib
+/VADPurge/export.h

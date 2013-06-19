@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "MemCore.h"
 #include "MemModules.h"
+#include "VADPurge/VADPurgeDef.h"
 
 #include <winioctl.h>
 
@@ -15,6 +16,13 @@ namespace ds_mmap
         #define IOCTL_DARKDEP_DISABLE_DEP       CTL_CODE(FILE_DEVICE_DARKDEP, 0x800, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
         #define IOCTL_DARKDEP_SET_PROTECTION    CTL_CODE(FILE_DEVICE_DARKDEP, 0x801, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
 
+        #define DRV_NAME                        L"VADPurge"
+        #define DRV_FILE                        L"VADPurge.sys"
+        #define DRV_REG_PATH                    L"\\registry\\machine\\SYSTEM\\CurrentControlSet\\Services\\VADPurge"
+        #define STATUS_IMAGE_ALREADY_LOADED     ((NTSTATUS)0xC000010EL)
+
+        extern "C" NTSYSAPI NTSTATUS NTAPI NtLoadDriver     (__in PUNICODE_STRING DriverServiceName);
+        extern "C" NTSYSAPI NTSTATUS NTAPI NtUnloadDriver   (__in PUNICODE_STRING DriverServiceName);
 
         // Provides operations with process memory 
         class CProcess
@@ -84,7 +92,9 @@ namespace ds_mmap
             */
             DWORD RemoveVEH();
 
-        public:
+            /*
+            */
+            DWORD UnlinkVad(void* pBase, size_t size);
 
             //
             // VEH to inject
@@ -94,6 +104,30 @@ namespace ds_mmap
         #else
             static LONG CALLBACK VectoredHandler32( _In_ PEXCEPTION_POINTERS ExceptionInfo );
         #endif
+
+        private:
+            /*
+                Load driver by name. Driver must reside in current working directory
+
+                IN:
+                    name - driver filename
+
+                RETURN:
+                    Error code
+
+            */
+            DWORD LoadDriver(const std::wstring& name);
+
+            /*
+                Grant current process arbitrary privilege
+
+                IN:
+                    name - privilege name
+
+                RETURN:
+                    Error code
+            */
+            DWORD GrantPriviledge( const std::wstring& name );
 
         public:
             CMemCore    Core;       // Process core memory routines

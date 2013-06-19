@@ -7,7 +7,7 @@ namespace ds_mmap
         // taken from CRT include <Ehdata.h>
         #define EH_MAGIC_NUMBER1        0x19930520    
         #define EH_PURE_MAGIC_NUMBER1   0x01994000
-        #define EH_EXCEPTION_NUMBER        ('msc' | 0xE0000000)
+        #define EH_EXCEPTION_NUMBER     ('msc' | 0xE0000000)
 
         void*  CProcess::pImageBase = nullptr;
         size_t CProcess::imageSize  = 0;
@@ -17,6 +17,8 @@ namespace ds_mmap
             , m_pVEHCode(nullptr)
             , m_hVEH(nullptr)
         {
+            GrantPriviledge(SE_LOAD_DRIVER_NAME);
+
         #ifdef _M_AMD64
             //AddVectoredExceptionHandler(0, &CProcess::VectoredHandler64);
         #else
@@ -248,6 +250,148 @@ namespace ds_mmap
         }
 
         /*
+            Unlink memory region from process VAD list
+        */
+        DWORD CProcess::UnlinkVad( void* pBase, size_t size )
+        {
+            HANDLE hFile = CreateFile(_T("\\\\.\\VadPurge"), GENERIC_ALL, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+            // Load missing driver
+            if(hFile == INVALID_HANDLE_VALUE)
+            {
+                DWORD err = LoadDriver(DRV_FILE);
+
+                if(err != ERROR_SUCCESS && err != STATUS_IMAGE_ALREADY_LOADED)
+                    return err;
+
+                hFile = CreateFile(_T("\\\\.\\VadPurge"), GENERIC_ALL, 0, NULL, OPEN_EXISTING, 0, NULL);
+            }
+
+            if(hFile != INVALID_HANDLE_VALUE)
+            {
+                PURGE_DATA data = { Core.m_pid, 1, { (ULONGLONG)pBase, size} };
+                DWORD junk      = 0;
+
+                BOOL result = DeviceIoControl(hFile, (DWORD)IOCTL_VADPURGE_PURGE, &data, sizeof(data), NULL, 0, &junk, NULL);
+
+                CloseHandle(hFile);
+
+                return result ? ERROR_SUCCESS : GetLastError();
+            }
+
+            return GetLastError();
+        }
+
+        /*
+            Load driver by name. Driver must reside in current working directory
+
+            IN:
+                name - driver filename
+
+            RETURN:
+                Error code
+
+        */
+        DWORD CProcess::LoadDriver( const std::wstring& name )
+        {
+            HKEY key1, key2;
+            DWORD dwType = 1;
+            UNICODE_STRING Ustr;
+            LSTATUS status = 0;
+            WCHAR wszLocalPath[MAX_PATH] = {0};
+            WCHAR wszFilePath[MAX_PATH]  = {0};
+
+            GetFullPathName(name.c_str(), ARRAYSIZE(wszFilePath), wszFilePath, NULL);
+
+            wsprintf(wszLocalPath, L"\\??\\%s", wszFilePath);
+
+            status = RegOpenKey(HKEY_LOCAL_MACHINE, L"system\\CurrentControlSet\\Services", &key1);
+
+            if(status)
+                return status;
+
+            status = RegCreateKeyW(key1, DRV_NAME, &key2);
+
+            if(status)
+            {
+                RegCloseKey(key1);
+                return status;
+            }
+
+            status = RegSetValueEx(key2, L"ImagePath", 0, REG_SZ, (BYTE*)wszLocalPath, (DWORD)(sizeof(WCHAR) * (wcslen(wszLocalPath) + 1)));
+
+            if(status)
+            {
+                RegCloseKey(key2);
+                RegCloseKey(key1);
+                return status;
+            }
+
+            status = RegSetValueEx(key2, L"Type", 0, REG_DWORD, (BYTE*)&dwType, sizeof(DWORD));
+
+            if(status)
+            {
+                RegCloseKey(key2);
+                RegCloseKey(key1);
+                return status;
+            }
+
+            RegCloseKey(key2);
+            RegCloseKey(key1);
+
+            RtlInitUnicodeString((PUNICODE_STRING)&Ustr, DRV_REG_PATH);
+
+            // Remove previously loaded instance
+            NtUnloadDriver(&Ustr);
+
+            return NtLoadDriver(&Ustr);
+        }
+
+        /*
+            Grant current process arbitrary privilege
+
+            IN:
+                name - privilege name
+
+            RETURN:
+                Error code
+        */
+        DWORD CProcess::GrantPriviledge( const std::wstring& name )
+        {
+            TOKEN_PRIVILEGES Priv, PrivOld;
+            DWORD cbPriv = sizeof(PrivOld);
+            HANDLE hToken;
+
+            if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,FALSE, &hToken))
+            {
+                if (GetLastError()!=ERROR_NO_TOKEN)
+                    return GetLastError();
+
+                if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hToken))
+                    return GetLastError();
+            }
+
+            Priv.PrivilegeCount = 1;
+            Priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            LookupPrivilegeValue(NULL, name.c_str(), &Priv.Privileges[0].Luid);
+
+            if (!AdjustTokenPrivileges(hToken, FALSE, &Priv, sizeof(Priv),&PrivOld, &cbPriv))
+            {
+                CloseHandle(hToken);
+                return GetLastError();
+            }
+
+            if (GetLastError() == ERROR_NOT_ALL_ASSIGNED)
+            {
+                CloseHandle(hToken);
+                return GetLastError();
+            }
+
+            return ERROR_SUCCESS;
+        }
+
+
+        /*
             VEH to inject into process
         */
         #ifdef _M_AMD64
@@ -348,7 +492,7 @@ namespace ds_mmap
                 ret 4
             }
         }
-        #pragma warning(default : 4733)
+#pragma warning(default : 4733)
         #endif//_M_AMD64
     }
 }

@@ -175,15 +175,13 @@ namespace ds_mmap
         // Stupid security cookie
         InitializeCookie();
 
-        //
-        // Handle image as pure .NET one
-        //
-        if(!m_pTopImage->ImagePE.IsPureManaged())
-        {
-            // Entry point
-            if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)
-                CallEntryPoint(DLL_PROCESS_ATTACH);
-        }        
+        // Unlink image from VAD list
+        if(m_pTopImage->flags & UnlinkVAD)
+            m_TargetProcess.UnlinkVad(m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize());
+
+        // Entry point
+        if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)
+            CallEntryPoint(DLL_PROCESS_ATTACH);       
 
         // Free local image
         m_pTopImage->Image.Release();

@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|Win32'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+    <TestCertificate>CN="WDKTestCert Ton,129965339864496255" | C09E6BCF77E9292204609B6EF8288506CE7B4CCC</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
+    <DbgengKernelMachineName>127.0.0.1</DbgengKernelMachineName>
+  </PropertyGroup>
+</Project>
