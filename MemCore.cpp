@@ -407,7 +407,7 @@ namespace ds_mmap
         */
         DWORD CMemCore::ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult )
         {
-            DWORD dwResult  = ERROR_SUCCESS;
+            DWORD dwResult = ERROR_SUCCESS;
 
             // Allocate new codecave
             if(!m_pCodecave)

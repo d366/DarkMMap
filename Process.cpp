@@ -59,6 +59,7 @@ namespace ds_mmap
                               PROCESS_VM_WRITE          | 
                               PROCESS_VM_OPERATION      | 
                               PROCESS_CREATE_THREAD     |
+                              PROCESS_SET_QUOTA         |
                               PROCESS_TERMINATE;
 
             Core.m_pid        = pid;
@@ -269,14 +270,43 @@ namespace ds_mmap
 
             if(hFile != INVALID_HANDLE_VALUE)
             {
-                PURGE_DATA data = { Core.m_pid, 1, { (ULONGLONG)pBase, size} };
-                DWORD junk      = 0;
+                //
+                // Lock pages in working set before unlinking
+                // UserMode page faults can't be resolved without VAD record
+                //
+                AsmJit::Assembler a;
+                AsmJitHelper ah(a);
+                size_t result = 0;
+                BOOL ret = TRUE;
 
-                BOOL result = DeviceIoControl(hFile, (DWORD)IOCTL_VADPURGE_PURGE, &data, sizeof(data), NULL, 0, &junk, NULL);
+                //
+                // Adjust maximum number of locked pages
+                //
+                SIZE_T sizeMin = 0, sizeMax = 0;
+                GetProcessWorkingSetSize(Core.m_hProcess, &sizeMin, &sizeMax);
+                SetProcessWorkingSetSize(Core.m_hProcess, sizeMin + size, sizeMax + size);
+
+                ah.GenPrologue();
+                ah.GenCall(&VirtualLock, { (size_t)pBase, size });
+                ah.SaveRetValAndSignalEvent();
+                ah.GenEpilogue();
+
+                Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result);
+
+                // Continue only if pages are locked
+                if(result != 0)
+                {
+                    PURGE_DATA data = { Core.m_pid, 1, { (ULONGLONG)pBase, size} };
+                    DWORD junk      = 0;
+
+                    ret = DeviceIoControl(hFile, (DWORD)IOCTL_VADPURGE_PURGE, &data, sizeof(data), NULL, 0, &junk, NULL);
+                }
+                else
+                    SetLastError(ERROR_ACCESS_DENIED);
 
                 CloseHandle(hFile);
 
-                return result ? ERROR_SUCCESS : GetLastError();
+                return ret ? ERROR_SUCCESS : GetLastError();
             }
 
             return GetLastError();
