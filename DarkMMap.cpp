@@ -90,10 +90,6 @@ namespace ds_mmap
             return 0;
         }
 
-        // Set current activation context
-        if(!(flags & NoSxS))
-            m_TargetProcess.Modules.PushLocalActx(m_pTopImage->Image.actx());
-
         // Already loaded
         if(HMODULE hMod = m_TargetProcess.Modules.GetModuleAddress(m_pTopImage->FileName.c_str()))
         {
@@ -114,8 +110,15 @@ namespace ds_mmap
         }
 
         // For debug testing only
-        ds_process::CProcess::pImageBase = m_pTopImage->pTargetBase;
-        ds_process::CProcess::imageSize  = m_pTopImage->ImagePE.ImageSize();
+        if(!(flags & NoExceptions))
+        {
+            ds_process::CProcess::pImageBase = m_pTopImage->pTargetBase;
+            ds_process::CProcess::imageSize  = m_pTopImage->ImagePE.ImageSize();
+        }
+
+        // Set current activation context
+        if(!(flags & NoSxS))
+            m_TargetProcess.Modules.PushLocalActx(m_pTopImage->Image.actx());
 
         // Create Activation context for SxS
         // .exe files usually contain manifest under id of 1
@@ -137,7 +140,7 @@ namespace ds_mmap
         /*if(m_pTopImage->ImagePE.IsPureManaged())
             return MapPureManaged();*/
         
-        m_TargetProcess.Modules.AddManualModule(m_pTopImage->FileName, (HMODULE)m_pTopImage->pTargetBase);
+       m_TargetProcess.Modules.AddManualModule(m_pTopImage->FileName, (HMODULE)m_pTopImage->pTargetBase);
 
         // Create reference for native loader functions
         if(flags & CreateLdrRef)
@@ -152,7 +155,7 @@ namespace ds_mmap
         }
 
         // Apply proper memory protection for sections
-        ProtectImageMemory();
+        //ProtectImageMemory();
 
         // Make exception handling possible (C and C++)
         if(/*m_TargetProcess.DisabeDEP() != ERROR_SUCCESS &&*/
@@ -179,8 +182,12 @@ namespace ds_mmap
         if(m_pTopImage->flags & UnlinkVAD)
             m_TargetProcess.UnlinkVad(m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize());
 
+        // Topmost image, change process base module address if needed
+        if(flags & RebaseProcess && m_pTopImage->ImagePE.IsExe() && pOldImage == nullptr)
+            m_TargetProcess.Core.Write((size_t)m_TargetProcess.Core.GetPebBase() + 2 * WordSize, (size_t)m_pTopImage->pTargetBase);
+
         // Entry point
-        if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)
+        if((m_pTopImage->EntryPoint = (pDllMain)m_pTopImage->ImagePE.EntryPoint(m_pTopImage->pTargetBase)) != nullptr)      
             CallEntryPoint(DLL_PROCESS_ATTACH);       
 
         // Free local image
@@ -342,7 +349,11 @@ namespace ds_mmap
                 // add delta 
                 if (fixtype == IMAGE_REL_BASED_HIGHLOW || fixtype == IMAGE_REL_BASED_DIR64) 
                 {
-                    m_TargetProcess.Core.Write((size_t)m_pTopImage->pTargetBase + fixoffset + fixrec->PageRVA, *(size_t*)((size_t)m_pTopImage->Image.base() + fixoffset + fixrec->PageRVA) + Delta);
+                    size_t targetAddr = (size_t)m_pTopImage->pTargetBase + fixoffset + fixrec->PageRVA;
+                    size_t sourceAddr = *(size_t*)((size_t)m_pTopImage->Image.base() + fixoffset + fixrec->PageRVA) + Delta;
+
+                    if(m_TargetProcess.Core.Write(targetAddr, sourceAddr) != ERROR_SUCCESS)
+                        return false;
                 }
                 else
                 {
@@ -402,7 +413,10 @@ namespace ds_mmap
                 if(!hMod)
                 {
                     printf("Missing import %s\n", strDll.c_str());
-                    SetLastError(err::mapping::CantResolveImport);
+
+                    if(GetLastError() == ERROR_SUCCESS)
+                        SetLastError(err::mapping::CantResolveImport);
+
                     return false;
                 }            
             }
@@ -563,7 +577,7 @@ namespace ds_mmap
 
             ah.GenPrologue();
 
-            ah.GenCall(&RtlAddFunctionTable, {m_pTopImage->pExpTableAddr, size / sizeof(IMAGE_RUNTIME_FUNCTION_ENTRY), (size_t)m_pTopImage->pTargetBase});
+            ah.GenCall(&RtlAddFunctionTable, { m_pTopImage->pExpTableAddr, size / sizeof(IMAGE_RUNTIME_FUNCTION_ENTRY), (size_t)m_pTopImage->pTargetBase });
 
             ah.SaveRetValAndSignalEvent();
             ah.GenEpilogue();
@@ -579,8 +593,9 @@ namespace ds_mmap
         else
             return false;
     #else
-        return (m_TargetProcess.CreateVEH() == ERROR_SUCCESS);
+        m_TargetProcess.Modules.NtLoader().InsertInvertedFunctionTable(m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize());
 
+        return (m_TargetProcess.CreateVEH((size_t)m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize()) == ERROR_SUCCESS);
     #endif
     }
 
@@ -607,9 +622,9 @@ namespace ds_mmap
             if(m_TargetProcess.Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result) != ERROR_SUCCESS)
                 return false;
 
-            /*if(m_pTopImage->flags & CreateLdrRef)
+            if(m_pTopImage->flags & CreateLdrRef)
                 return true;
-            else*/
+            else
                 return (m_TargetProcess.RemoveVEH() == ERROR_SUCCESS);
         }
         else
@@ -898,20 +913,24 @@ namespace ds_mmap
     {
         DWORD dwResult = PAGE_NOACCESS;
 
-        if((characteristics & IMAGE_SCN_MEM_EXECUTE) && (characteristics & IMAGE_SCN_MEM_READ) && (characteristics & IMAGE_SCN_MEM_WRITE))
-            dwResult = PAGE_EXECUTE_READWRITE;
-
-        else if((characteristics & IMAGE_SCN_MEM_EXECUTE) && (characteristics & IMAGE_SCN_MEM_READ))
-            dwResult = PAGE_EXECUTE_READ;
-
-        else if((characteristics & IMAGE_SCN_MEM_READ) && (characteristics & IMAGE_SCN_MEM_WRITE))
-            dwResult = PAGE_READWRITE;
-
-        else if(characteristics & IMAGE_SCN_MEM_READ)
-            dwResult = PAGE_READONLY;
-
-        else if(characteristics & IMAGE_SCN_MEM_WRITE)
-            dwResult = PAGE_READWRITE;
+        if(characteristics & IMAGE_SCN_MEM_EXECUTE) 
+        {
+            if(characteristics & IMAGE_SCN_MEM_WRITE)
+                dwResult = PAGE_EXECUTE_READWRITE;
+            else if(characteristics & IMAGE_SCN_MEM_READ)
+                dwResult = PAGE_EXECUTE_READ;
+            else
+                dwResult = PAGE_EXECUTE;
+        } 
+        else
+        {
+            if(characteristics & IMAGE_SCN_MEM_WRITE)
+                dwResult = PAGE_READWRITE;
+            else if(characteristics & IMAGE_SCN_MEM_READ)
+                dwResult = PAGE_READONLY;
+            else
+                dwResult = PAGE_NOACCESS;
+        }
 
         return dwResult;
     }

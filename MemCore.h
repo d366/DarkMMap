@@ -45,13 +45,15 @@ namespace ds_mmap
                 IN:
                     pAddr - address to release
     
-                OUT:
-                    void
-    
                 RETURN:
                     Error code
             */
             DWORD Free(PVOID pAddr);
+
+            /*
+                Free all allocated memory regions
+            */
+            void FreeAll();
     
             /*
                 Change memory protection
@@ -221,6 +223,24 @@ namespace ds_mmap
             DWORD ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult );
 
             /*
+                Find data by pattern
+
+                IN:
+                    sig - byte signature to find
+                    pattern - pattern mask
+                    scanStart - scan start
+                    scanSize - size of data to scan
+
+                OUT:
+                    out - found addresses
+
+                RETURN:
+                    Number of found items
+
+            */
+            size_t FindPattern(const std::string& sig, const std::string& pattern, void* scanStart, size_t scanSize, std::vector<size_t>& out);
+
+            /*
                 Retrieve process PEB address
 
                 RETURN:
@@ -248,6 +268,8 @@ namespace ds_mmap
             void*   m_pW8DllBase;       // Windows 8 module tree root node
             void*   m_pCodecave;        // Codecave for code execution
             size_t  m_codeSize;         // Current codecave size
+
+            std::vector<void*> m_Allocations;   // List of all memory allocations
         };
     }
 }

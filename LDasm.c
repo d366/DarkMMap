@@ -765,11 +765,14 @@ unsigned long __fastcall SizeOfProc(void *Proc)
         pOpcode = (u8*)Proc + data.opcd_offset;
         Result += Length;
 
-        if ((Length == 1) && (*pOpcode == 0xC3)) 
+        if ((Length == 1) && (*pOpcode == 0xCC))
+            break;
+
+        /*if ((Length == 1) && (*pOpcode == 0xC3)) 
             break;
 
         if ((Length == 3) && (*pOpcode == 0xC2))
-            break;
+            break;*/
 
         Proc = (void*)((size_t)Proc + Length);
 

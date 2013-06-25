@@ -190,6 +190,7 @@ namespace ds_mmap
         }
 
         /*
+            Pure IL image
         */
         bool CPEManger::IsPureManaged() const
         {
@@ -202,6 +203,14 @@ namespace ds_mmap
             }
 
             return false;
+        }
+
+        /*
+            Image is exe file and not a dynamic-link library
+        */
+        bool CPEManger::IsExe() const
+        {
+            return !(m_pImageHdr->FileHeader.Characteristics & IMAGE_FILE_DLL);
         }
     }
 }

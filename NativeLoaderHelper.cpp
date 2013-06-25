@@ -9,8 +9,11 @@ namespace ds_mmap
             , m_LdrpHashTable(0)
             , m_LdrpModuleIndexBase(0)
             , m_LdrpModuleBase(0)
+            , m_LdrHeapBase(0)
+            , m_RtlInsertInvertedFunctionTable(nullptr)
+            , m_LdrpInvertedFunctionTable(nullptr)
         {
- 
+            memset(&m_verinfo, 0x0, sizeof(m_verinfo));
         }
 
         CNtLdr::~CNtLdr(void)
@@ -19,21 +22,26 @@ namespace ds_mmap
 
         bool CNtLdr::Init()
         {
+            m_verinfo.dwOSVersionInfoSize = sizeof(m_verinfo);
+
+            GetVersionEx(&m_verinfo);
+
+            //
+            // Dynamic data initialization
+            //
             FindLdrpHashTable();
             FindLdrpModuleIndexBase();
             FindLdrpModuleBase();
+            FindPatterns();
+            FindLdrHeap();
 
             return true;
         }
 
         bool CNtLdr::CreateNTReference( HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath )
         {
-            OSVERSIONINFO verinfo = {sizeof(OSVERSIONINFO), 0};
-
-            GetVersionEx(&verinfo);
-
             // Win 8 and higher
-            if(verinfo.dwMajorVersion >= 6 && verinfo.dwMinorVersion >= 2)
+            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
             {
                 ULONG hash = 0;
                 _LDR_DATA_TABLE_ENTRY_W8 *pEntry = InitW8Node((void*)hMod, ImageSize, DllBaseName, DllBasePath, hash);
@@ -94,7 +102,7 @@ namespace ds_mmap
                         return false;
                 }
             }
-            // Windows 7 and less
+            // Windows 7 and earlier
             else
             {
                 ULONG hash = 0;
@@ -107,6 +115,58 @@ namespace ds_mmap
                 InsertMemModuleNode((PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, InMemoryOrderLinks)), 
                                     (PLIST_ENTRY)((uint8_t*)pEntry + FIELD_OFFSET(_LDR_DATA_TABLE_ENTRY_W7, InLoadOrderLinks)));
 			}
+
+            return false;
+        }
+
+        /*
+        */
+        bool CNtLdr::InsertInvertedFunctionTable( void* ModuleBase, size_t ImageSize )
+        { 
+            AsmJit::Assembler a;
+            AsmJitHelper ah(a);
+            size_t result = 0;
+
+            // Invalid addresses. Probably pattern scan has failed
+            if(m_RtlInsertInvertedFunctionTable == nullptr || m_LdrpInvertedFunctionTable == 0)
+                return false;
+
+            ah.GenPrologue();
+
+            ah.GenCall(m_RtlInsertInvertedFunctionTable, { (size_t)ModuleBase, ImageSize });
+
+            ah.SaveRetValAndSignalEvent();
+            ah.GenEpilogue();
+
+            m_memory.ExecInWorkerThread(a.make(), a.getCodeSize(), result);
+
+            RTL_INVERTED_FUNCTION_TABLE table = {0};
+
+            m_memory.Read(m_LdrpInvertedFunctionTable, sizeof(RTL_INVERTED_FUNCTION_TABLE), &table);
+
+            for(DWORD i = 0; i < table.Count; i++)
+            {
+                if(table.Entries[i].ImageBase == ModuleBase)
+                {
+                    // If Image has SAFESEH, RtlInsertInvertedFunctionTable is enough
+                    if(table.Entries[i].ExceptionDirectorySize != 0)
+                        return true;
+
+                    //
+                    // Create fake Exception directory
+                    // Directory will be filled later, during exception handling
+                    //
+                    PIMAGE_RUNTIME_FUNCTION_ENTRY pImgEntry = nullptr;
+
+                    // Allocate memory for 256 possible handlers
+                    m_memory.Allocate(sizeof(DWORD)*0x100, (PVOID&)pImgEntry);
+
+                    // m_LdrpInvertedFunctionTable->Entries[i].ExceptionDirectory
+                    size_t field_ofst = (size_t)&table.Entries[i].ExceptionDirectory - (size_t)&table;
+
+                    return (m_memory.Write((size_t)m_LdrpInvertedFunctionTable + field_ofst, RtlEncodeSystemPointer(pImgEntry)) == ERROR_SUCCESS);
+                }
+            }
 
             return false;
         }
@@ -129,12 +189,10 @@ namespace ds_mmap
             m_memory.Allocate(0x1000, StringBuf);
 
             //
-            // HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(_LDR_DATA_TABLE_ENTRY_W8));
+            // HeapAlloc(LdrHeap, HEAP_ZERO_MEMORY, sizeof(_LDR_DATA_TABLE_ENTRY_W8));
             //
             ah.GenPrologue();
-
-            ah.GenCall(&GetProcessHeap, {});
-            ah.GenCall(&HeapAlloc, {AsmJit::nax, HEAP_ZERO_MEMORY, sizeof(_LDR_DATA_TABLE_ENTRY_W8)});
+            ah.GenCall(&HeapAlloc, { m_LdrHeapBase, HEAP_ZERO_MEMORY, sizeof(_LDR_DATA_TABLE_ENTRY_W8) });
 
             ah.SaveRetValAndSignalEvent();
             ah.GenEpilogue();
@@ -151,8 +209,7 @@ namespace ds_mmap
                 //
                 ah.GenPrologue();
 
-                ah.GenCall(&GetProcessHeap, {});
-                ah.GenCall(&HeapAlloc, {AsmJit::nax, HEAP_ZERO_MEMORY, sizeof(_LDR_DDAG_NODE)});
+                ah.GenCall(&HeapAlloc, { m_LdrHeapBase, HEAP_ZERO_MEMORY, sizeof(_LDR_DDAG_NODE) });
 
                 ah.SaveRetValAndSignalEvent();
                 ah.GenEpilogue();
@@ -236,8 +293,7 @@ namespace ds_mmap
             //
             ah.GenPrologue();
 
-            ah.GenCall(&GetProcessHeap, {});
-            ah.GenCall(&HeapAlloc, {AsmJit::nax, HEAP_ZERO_MEMORY, sizeof(_LDR_DATA_TABLE_ENTRY_W7)});
+            ah.GenCall(&HeapAlloc, {m_LdrHeapBase, HEAP_ZERO_MEMORY, sizeof(_LDR_DATA_TABLE_ENTRY_W7)});
 
             ah.SaveRetValAndSignalEvent();
             ah.GenEpilogue();
@@ -365,14 +421,11 @@ namespace ds_mmap
         */
         bool CNtLdr::FindLdrpHashTable()
         {
-            OSVERSIONINFO verinfo = {sizeof(OSVERSIONINFO), 0};
             _PEB_LDR_DATA_W8 *Ldr = (_PEB_LDR_DATA_W8*)NtCurrentTeb()->ProcessEnvironmentBlock->Ldr;
-            ULONG NtdllHashIndex = 0;
-
-            GetVersionEx(&verinfo);
+            ULONG NtdllHashIndex  = 0;
 
             // Win 8 and higher
-            if(verinfo.dwMajorVersion >= 6 && verinfo.dwMinorVersion >= 2)
+            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
             {
                 // get ntdll entry
                 _LDR_DATA_TABLE_ENTRY_W8 *Ntdll = CONTAINING_RECORD (Ldr->InInitializationOrderModuleList.Flink, _LDR_DATA_TABLE_ENTRY_W8, InInitializationOrderLinks);
@@ -475,11 +528,102 @@ namespace ds_mmap
         */
         bool CNtLdr::FindLdrpModuleBase()
         {
-            _PEB_LDR_DATA_W8 *Ldr = (_PEB_LDR_DATA_W8*)NtCurrentTeb()->ProcessEnvironmentBlock->Ldr;
+            PPEB pPEB = m_memory.GetPebBase();
+            PEB  peb  = m_memory.Read<PEB>(pPEB);
 
-            m_LdrpModuleBase = (size_t)&Ldr->InLoadOrderModuleList;
+            m_LdrpModuleBase = (size_t)peb.Ldr + FIELD_OFFSET(_PEB_LDR_DATA_W8, InLoadOrderModuleList);
 
             return true;
         }
+
+        /*
+            Find data patterns
+        */
+        bool CNtLdr::FindPatterns()
+        {
+            std::vector<size_t> foundData;
+            ds_pe::CPEManger ntdll;
+            void* pStart    = nullptr;
+            size_t scanSize = 0;
+
+            ntdll.Parse(GetModuleHandle(_T("ntdll.dll")), false);
+
+            // Find ntdll code section
+            for(auto& section : ntdll.Sections())
+            {
+                if(_stricmp((const char*)section.Name, ".text") == 0)
+                {
+                    pStart   = (void*)((size_t)GetModuleHandle(_T("ntdll.dll")) + section.VirtualAddress);
+                    scanSize = section.Misc.VirtualSize;
+
+                    break;
+                }
+            }
+
+            // Win 8 and later
+            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
+            {
+            #ifdef _M_AMD64
+            #else
+                // RtlInsertInvertedFunctionTable
+                // 8B FF 55 8B EC 51 51 53 57 8B 7D 08 8D
+                m_memory.FindPattern("\x8b\xff\x55\x8b\xec\x51\x51\x53\x57\x8b\x7d\x08\x8d", "xxxxxxxxxxxxx", pStart, scanSize, foundData);
+
+                if(!foundData.empty())
+                {
+                    m_RtlInsertInvertedFunctionTable = (int(__stdcall*)(void*, size_t))foundData.front();
+                    m_LdrpInvertedFunctionTable      = (PRTL_INVERTED_FUNCTION_TABLE)(*(size_t*)((size_t)m_RtlInsertInvertedFunctionTable + 0x26));
+                }
+            #endif
+
+            }
+            // Win 7 and earlier
+            else
+            {
+            #ifdef _M_AMD64
+            #else
+                // RtlInsertInvertedFunctionTable
+                // 8B FF 55 8B EC 56 68
+                m_memory.FindPattern("\x8b\xff\x55\x8b\xec\x56\x68", "xxxxxxx", pStart, scanSize, foundData);
+
+                if(!foundData.empty())
+                    m_RtlInsertInvertedFunctionTable = (int(__stdcall*)(void*, size_t))foundData.front();
+
+                // RtlLookupFunctionTable + 0x11
+                // 89 5D E0 38
+                m_memory.FindPattern("\x89\x5D\xE0\x38", "xxxx", pStart, scanSize, foundData);
+                
+                if(!foundData.empty())
+                    m_LdrpInvertedFunctionTable = (PRTL_INVERTED_FUNCTION_TABLE)(*(size_t*)(foundData.front() + 0x1B));
+
+            #endif
+            }
+
+            return true;
+        }
+
+        /*
+            Find Loader heap base
+        */
+        bool CNtLdr::FindLdrHeap()
+        {
+            PPEB pPeb = m_memory.GetPebBase();
+            MEMORY_BASIC_INFORMATION mbi = {0};
+
+            if(pPeb)
+            {
+                PEB_LDR_DATA          Ldr        = m_memory.Read<PEB_LDR_DATA>(m_memory.Read<size_t>((size_t)pPeb + FIELD_OFFSET(PEB, Ldr)));
+                PLDR_DATA_TABLE_ENTRY NtdllEntry = CONTAINING_RECORD(Ldr.InMemoryOrderModuleList.Flink, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+                if (VirtualQueryEx(m_memory.m_hProcess, NtdllEntry, &mbi, sizeof(mbi)))
+                {
+                    m_LdrHeapBase = (size_t)mbi.AllocationBase;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
     }
 }

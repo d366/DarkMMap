@@ -30,6 +30,8 @@ namespace ds_mmap
 
             if(m_pCodecave)
                 Free(m_pCodecave);
+
+            FreeAll();
         }
 
         /*
@@ -54,8 +56,13 @@ namespace ds_mmap
             {
                 pAddr = VirtualAllocEx(m_hProcess, NULL, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
                 if(pAddr)
+                {
+                    m_Allocations.emplace_back(pAddr);
                     SetLastError(ERROR_IMAGE_NOT_AT_BASE);
+                }
             }
+            else
+                m_Allocations.emplace_back(pAddr);            
 
             return GetLastError();
         }
@@ -77,8 +84,28 @@ namespace ds_mmap
             SetLastError(ERROR_SUCCESS);
             VirtualFreeEx(m_hProcess, pAddr, 0, MEM_RELEASE);
 
+            //
+            // Erase record from allocation table
+            //
+            auto iter = std::find(m_Allocations.begin(), m_Allocations.end(), pAddr);
+
+            if(iter != m_Allocations.end())
+                m_Allocations.erase(iter);
+
             return GetLastError();
         }
+
+        /*
+            Free all allocated memory regions
+        */
+        void CMemCore::FreeAll()
+        {
+            for(auto& pAddr : m_Allocations)
+                VirtualFreeEx(m_hProcess, pAddr, 0, MEM_RELEASE);
+
+            m_Allocations.clear();
+        }
+
 
         /*
             Change memory protection
@@ -367,6 +394,8 @@ namespace ds_mmap
             return dwResult;
         }
 
+        /*
+        */
         DWORD CMemCore::TerminateWorkerThread()
         {
             if(m_hWaitEvent)
@@ -452,6 +481,71 @@ namespace ds_mmap
         }
 
         /*
+            Find data by pattern
+
+            IN:
+                sig - byte signature to find
+                pattern - pattern mask
+                scanStart - scan start
+                scanSize - size of data to scan
+
+            OUT:
+                out - found addresses
+
+            RETURN:
+                Number of found items
+
+        */
+        size_t CMemCore::FindPattern( const std::string& sig, const std::string& pattern, void* scanStart, size_t scanSize, std::vector<size_t>& out )
+        {
+            bool fullMatch = false;
+            uint8_t *pBuffer = (uint8_t*)VirtualAlloc(NULL, scanSize, MEM_COMMIT, PAGE_READWRITE);
+
+            out.clear();
+
+            // Size mismatch
+            if(pattern.length() > sig.length())
+                return 0;
+
+            // No arbitrary bytes in mask
+            if(pattern.find('?') == pattern.npos)
+                fullMatch = true;
+
+            if(pBuffer && Read(scanStart, scanSize, pBuffer) == ERROR_SUCCESS)
+            {
+                size_t length = pattern.length();
+
+                //
+                // Scan buffer
+                //
+                for(size_t x = 0; x < scanSize - length; x++ )
+                {
+                    bool bMatch = true;
+
+                    if(fullMatch)
+                        bMatch = (memcmp(sig.data(), pBuffer + x, length) == 0);
+                    else
+                        for(size_t i = 0; i < length; i++)
+                        {
+                            if(pattern[i] == 'x' && ((char*)(pBuffer + x))[i] != sig[i])
+                            {
+                                bMatch = false;
+                                break;
+                            }
+                        }
+
+                    if(bMatch)
+                        out.emplace_back((size_t)scanStart + x);
+                }                
+            }
+
+            if(pBuffer)
+                VirtualFree(pBuffer, 0, MEM_DECOMMIT);
+
+            return out.size();
+        }
+
+        /*
             Retrieve process PEB address
 
             RETURN:
@@ -466,5 +560,6 @@ namespace ds_mmap
 
             return pbi.PebBaseAddress;
         }
+        
     }
 }

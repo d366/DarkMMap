@@ -166,6 +166,22 @@ struct _LDR_DATA_TABLE_ENTRY_W7
 
 #pragma warning(default : 4201)
 
+typedef struct _RTL_INVERTED_FUNCTION_TABLE_ENTRY
+{
+    PIMAGE_RUNTIME_FUNCTION_ENTRY ExceptionDirectory;
+    PVOID                         ImageBase;
+    ULONG                         ImageSize;
+    ULONG                         ExceptionDirectorySize;
+} RTL_INVERTED_FUNCTION_TABLE_ENTRY, * PRTL_INVERTED_FUNCTION_TABLE_ENTRY;
+
+typedef struct _RTL_INVERTED_FUNCTION_TABLE
+{
+    ULONG Count;
+    ULONG MaxCount; // always 160 in Windows Server 2003
+    ULONG Pad[ 0x2 ];
+    RTL_INVERTED_FUNCTION_TABLE_ENTRY Entries[0x200];
+} RTL_INVERTED_FUNCTION_TABLE, * PRTL_INVERTED_FUNCTION_TABLE;
+
 //
 // Api schema structures
 //

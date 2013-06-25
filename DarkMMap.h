@@ -15,13 +15,15 @@ namespace ds_mmap
 
     enum eLoadFlags
     {
-        NoFlags         = 0x00,    // No flags
-        ManualImports   = 0x01,    // Manually map import libraries
-        CreateLdrRef    = 0x02,    // Create module references for native loader
-        UnlinkVAD        = 0x04,    // Unlink image VAD from process VAD tree
-        NoExceptions    = 0x08,    // Do not create custom exception handler
-        NoDelayLoad     = 0x10,    // Do not resolve delay import
-        NoSxS           = 0x20,    // Do not apply SxS activation context
+        NoFlags         = 0x00,     // No flags
+        ManualImports   = 0x01,     // Manually map import libraries
+        CreateLdrRef    = 0x02,     // Create module references for native loader
+        UnlinkVAD       = 0x04,     // Unlink image VAD from process VAD tree
+        RebaseProcess   = 0x20,     // If target image is an .exe file, process base address will be replaced with mapped module value
+
+        NoExceptions    = 0x1000,   // Do not create custom exception handler
+        NoDelayLoad     = 0x2000,   // Do not resolve delay import
+        NoSxS           = 0x4000,   // Do not apply SxS activation context
     };
 
     struct ImageContext

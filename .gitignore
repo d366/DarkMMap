@@ -19,11 +19,15 @@
 *.[Cc]ache
 *.ilk
 *.log
+*.tlog
+*.pdb
+*.cer
 *.lib
 *.sbr
 *.sdf
 *.opensdf
 *.unsuccessfulbuild
+*.lastbuildstate
 ipch/
 obj/
 [Bb]in
@@ -66,15 +70,10 @@ packages/
 #Generated libraries
 *.dll
 *.bin
+*.sys
 #and files
 GeneratedFiles*/
 
-*.db
-*.mesh
+*.ggpk
 
-version.txt
-
-!Crypto.lib
-!zlib1.dll
-!zdll.lib
 /VADPurge/export.h

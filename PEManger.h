@@ -131,9 +131,14 @@ namespace ds_mmap
             size_t DirectorySize( int index ) const;
 
             /*
+                Pure IL image
             */
             bool IsPureManaged() const;
 
+            /*
+                Image is exe file and not a dynamic-link library
+            */
+            bool IsExe() const;
         private:
             bool                                m_isPlainData;  // File mapped as plain data file
             const void                         *m_pFileBase;    // File mapping base address

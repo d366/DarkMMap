@@ -63,7 +63,7 @@ namespace ds_mmap
                               PROCESS_TERMINATE;
 
             Core.m_pid        = pid;
-            Core.m_hProcess   = (hProcess != NULL) ? hProcess : OpenProcess(dwAccess, FALSE, pid);
+            Core.m_hProcess   = (hProcess != NULL) ? hProcess : (pid != GetCurrentProcessId() ? OpenProcess(dwAccess, FALSE, pid) : GetCurrentProcess());
 
             Modules.NtLoader().Init();
         }
@@ -198,9 +198,31 @@ namespace ds_mmap
             UNREFERENCED_PARAMETER(imageSize);
 
             // Resolve compiler incremental table address if any
-            void *pFunc = ResolveJmp(&CProcess::VectoredHandler32);   
+            void *pFunc    = ResolveJmp(&CProcess::VectoredHandler32); 
+            size_t fnSize  = SizeOfProc(pFunc);
+            size_t dataOfs = 0, code_ofs = 0;
 
-            if(Core.Write(m_pVEHCode, SizeOfProc(pFunc), pFunc) != ERROR_SUCCESS)
+            // Find and replace magic values
+            for(uint8_t *pData = (uint8_t*)pFunc; pData < (uint8_t*)pFunc + fnSize - 4; pData++)
+            {
+                // LdrpInvertedFunctionTable
+                if(*(size_t*)pData == 0xDEADDA7A)
+                {
+                    dataOfs = pData - (uint8_t*)pFunc;
+                    continue;
+                }
+
+                // DecodeSystemPointer address
+                if(*(size_t*)pData == 0xDEADC0DE)
+                {
+                    code_ofs = pData - (uint8_t*)pFunc;
+                    break;
+                }  
+            }
+
+            if(Core.Write((uint8_t*)m_pVEHCode, fnSize, pFunc) != ERROR_SUCCESS || 
+                Core.Write((uint8_t*)m_pVEHCode + dataOfs, Modules.NtLoader().LdrpInvertedFunctionTable()) != ERROR_SUCCESS ||
+                Core.Write((uint8_t*)m_pVEHCode + code_ofs, &DecodeSystemPointer) != ERROR_SUCCESS)
             {
                 Core.Free(m_pVEHCode);
                 m_pVEHCode = nullptr;
@@ -459,62 +481,82 @@ namespace ds_mmap
 
         #else
 
-        // warning C4733: Inline asm assigning to 'FS:0' : handler not registered as safe handler
-        #pragma warning(disable : 4733)
-
-        typedef _EXCEPTION_DISPOSITION(__cdecl *_pexcept_handler)
-            (
-                _EXCEPTION_RECORD *ExceptionRecord,
-                void * EstablisherFrame,
-                _CONTEXT *ContextRecord,
-                void * DispatcherContext
-            );
-
-        LONG __declspec(naked) CALLBACK CProcess::VectoredHandler32( _In_ PEXCEPTION_POINTERS ExceptionInfo )
+        LONG __declspec(naked) CALLBACK CProcess::VectoredHandler32( _In_ PEXCEPTION_POINTERS /*ExceptionInfo*/ )
         {
             EXCEPTION_REGISTRATION_RECORD  *pFs;
-            EXCEPTION_DISPOSITION           res;
-
+            PRTL_INVERTED_FUNCTION_TABLE    pTable;
+            DWORD                          *pDec, *pStart, x;
+            bool                            newHandler;
+            
             __asm
             {
                 push ebp
                 mov ebp, esp
                 sub esp, __LOCAL_SIZE
+                pushad
+                mov eax, 0xDEADDA7A
+                mov pTable, eax
             }
 
-            pFs = (EXCEPTION_REGISTRATION_RECORD*)__readfsdword(0);
-            res = ExceptionContinueSearch;
+            pFs = (PEXCEPTION_REGISTRATION_RECORD)__readfsdword(0);
 
-            // Prevent CRT from calling handlers in chain with EH_UNWINDING
-            for(; res == ExceptionContinueSearch && pFs && pFs != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff; pFs = pFs->Next, __writefsdword(0, (DWORD)pFs))
+            //
+            // Add each handler to LdrpInvertedFunctionTable
+            //
+            for(; pFs && pFs != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff && pFs->Next != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff; pFs = pFs->Next)
             {
-                ExceptionInfo->ExceptionRecord->ExceptionFlags &= ~EXCEPTION_UNWIND;
-
-                if(pFs->Handler)
+                // Find image for handler
+                for(DWORD imageIndex = 0; imageIndex < pTable->Count; imageIndex++)
                 {
-                    // Last frame contains special handler with __stdcall convention
-                    if(pFs->Next != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff)
-                        res = ((_pexcept_handler)pFs->Handler)(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
-                    else
-                        res = pFs->Handler(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
-
-                    // Unwind stack properly
-                    if(res == ExceptionContinueSearch)
+                    if((size_t)pFs->Handler >= (size_t)pTable->Entries[imageIndex].ImageBase && 
+                        (size_t)pFs->Handler <= (size_t)pTable->Entries[imageIndex].ImageBase + pTable->Entries[imageIndex].ImageSize)
                     {
-                        ExceptionInfo->ExceptionRecord->ExceptionFlags |= EXCEPTION_UNWIND;
+                        // Image is ntdll, skip it
+                        if(imageIndex == 0)
+                            break;
 
-                        if(pFs->Next != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff)
-                            res = ((_pexcept_handler)pFs->Handler)(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
-                        else
-                            res = pFs->Handler(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
+                        newHandler = false;
+
+                        //pStart = (DWORD*)DecodeSystemPointer(pTable->Entries[imageIndex].ExceptionDirectory);
+                        pStart = (DWORD*)((int(__stdcall*)(PVOID))0xDEADC0DE)(pTable->Entries[imageIndex].ExceptionDirectory);
+
+                        //
+                        // Add handler as fake SAFESEH record
+                        //
+                        for(pDec = pStart; pDec != nullptr && pDec < pStart + 0x100 ; pDec++)
+                        {
+                            if(*pDec == 0)
+                            {
+                                *pDec = (size_t)pFs->Handler - (size_t)pTable->Entries[imageIndex].ImageBase;
+                                pTable->Entries[imageIndex].ExceptionDirectorySize++;
+                                newHandler = true;
+
+                                break;
+                            }
+                            // Already in table
+                            else if((*pDec + (DWORD)pTable->Entries[imageIndex].ImageBase) == (DWORD)pFs->Handler)
+                                break;
+                        }
+
+                        // Sort handler addresses
+                        if(newHandler)
+                            for(DWORD i = 0 ; i < pTable->Entries[imageIndex].ExceptionDirectorySize; i++)
+                                for(DWORD j = pTable->Entries[imageIndex].ExceptionDirectorySize - 1; j > i; j--)
+                                    if(pStart[j-1] > pStart[j])
+                                    {
+                                        x           = pStart[j-1];
+                                        pStart[j-1] = pStart[j];
+                                        pStart[j]   = x;
+                                    }
                     }
                 }
-            }
+            }         
 
-            // We are screwed if got here
+            // Return control to SEH
             //return EXCEPTION_CONTINUE_SEARCH;
             __asm
             {
+                popad
                 mov esp, ebp
                 pop ebp
 
@@ -522,7 +564,7 @@ namespace ds_mmap
                 ret 4
             }
         }
-#pragma warning(default : 4733)
+
         #endif//_M_AMD64
     }
 }
