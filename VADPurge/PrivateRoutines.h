@@ -1,6 +1,13 @@
 #include "ntifs.h"
 #include "NativeStructs.h"
 
+// Debugging macro
+#ifdef DBG
+#define DPRINT(format, ...)     DbgPrint(format, __VA_ARGS__)//VPTrace(__VA_ARGS__);
+#else
+#define DPRINT(...)
+#endif
+
 #define SANITIZE_PARENT_NODE(Parent) ((PMMADDRESS_NODE)(((ULONG_PTR)(Parent)) & ~0x3))
 
 //
@@ -54,8 +61,8 @@
     (RtlRightChild(MiParent(Links)) == (PRTL_SPLAY_LINKS)(Links)) \
     )
 
-#define MI_MAKE_PARENT(ParentNode,ExistingBalance) \
-    (PMMADDRESS_NODE)((ULONG_PTR)(ParentNode) | ((ExistingBalance) & 0x3))
+#define MI_MAKE_PARENT(ParentNode, ExistingBalance) \
+    (PMMADDRESS_NODE)((ULONG_PTR)(ParentNode) | (((ULONG_PTR)ExistingBalance) & 0x3))
 
 #define COUNT_BALANCE_MAX(a)
 

@@ -180,12 +180,12 @@ NTSTATUS VPPurgeRecord( IN PPURGE_DATA pData )
                 //
                 // Search VAD
                 //
-                if(MiFindNodeOrParent(pTable, vpnStart, &pNode) == TableFoundNode)
+                if(MiFindNodeOrParent(pTable, (ULONG_PTR)vpnStart, &pNode) == TableFoundNode)
                 {
                     PMMVAD_SHORT pVad  = (PMMVAD_SHORT)pNode;
                     PPOOL_HEADER pPool = (PPOOL_HEADER)((PUCHAR)pNode - sizeof(POOL_HEADER));
 
-                    DPRINT ("Found VAD node: tag = 0x%x, type = %d, prot = %d, isPrivate = %d. Unlinking... \n", 
+                    DPRINT ("Found VAD node: tag = 0x%x, type = %d, prot = %d, isPrivate = %d. Unlinking...", 
                         pPool->PoolTag, pVad->u.VadFlags.VadType, pVad->u.VadFlags.Protection, pVad->u.VadFlags.PrivateMemory);
 
                     // Unlink node from AVL tree
@@ -204,6 +204,8 @@ NTSTATUS VPPurgeRecord( IN PPURGE_DATA pData )
 
                     // Free node memory
                     ExFreePoolWithTag(pNode, pPool->PoolTag);
+
+                    DPRINT ("Successfull");
                 }
                 else
                 {
@@ -252,16 +254,18 @@ NTSTATUS VPInitOffsets()
         {
             DPRINT("OS version %d.%d.%d.%d\n", verInfo.dwMajorVersion, verInfo.dwMinorVersion, verInfo.dwBuildNumber, verInfo.wServicePackMajor);
 
+            //
             // Windows 7
+            //
             if(verInfo.dwMajorVersion == 6 && verInfo.dwMinorVersion == 1)
             {
                 // No SP
                 if(verInfo.wServicePackMajor == 0)
                 {
                 #ifdef _M_AMD64
-                    ofst_current.ofsVadRoot = 0;
+                    ofst_current.ofsVadRoot = 0x448;
                 #else
-                    ofst_current.ofsVadRoot = 0;
+                    ofst_current.ofsVadRoot = 0x278;
                 #endif// _M_AMD64
                 }
                 // SP1
@@ -270,23 +274,25 @@ NTSTATUS VPInitOffsets()
                 #ifdef _M_AMD64
                     ofst_current.ofsVadRoot = 0x448;
                 #else
-                    ofst_current.ofsVadRoot = 0;
+                    ofst_current.ofsVadRoot = 0x278;
                 #endif// _M_AMD64
                 }
                 else
                     return STATUS_NOT_SUPPORTED;
             }
 
+            //
             // Windows 8
+            //
             else if(verInfo.dwMajorVersion == 6 && verInfo.dwMinorVersion == 2)
             {
                 // No SP
                 if(verInfo.wServicePackMajor == 0)
                 {
                 #ifdef _M_AMD64
-                    ofst_current.ofsVadRoot = 0;
+                    ofst_current.ofsVadRoot = 0x590;
                 #else
-                    ofst_current.ofsVadRoot = 0;
+                    ofst_current.ofsVadRoot = 0x384;
                 #endif// _M_AMD64
                 }
                 // SP1 (Stub)

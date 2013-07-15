@@ -15,6 +15,12 @@
     <ClInclude Include="PrivateRoutines.h">
       <Filter>Native</Filter>
     </ClInclude>
+    <ClInclude Include="NativeStructs7.h">
+      <Filter>Native</Filter>
+    </ClInclude>
+    <ClInclude Include="NativeStructs8.h">
+      <Filter>Native</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Native">

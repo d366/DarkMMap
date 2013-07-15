@@ -178,6 +178,7 @@
     <ClCompile>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN8_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|Win32'">
@@ -191,18 +192,21 @@
       <CompileAs>CompileAsC</CompileAs>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN7_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <ClCompile>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN7_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">
     <ClCompile>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN8_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Debug|x64'">
@@ -215,6 +219,7 @@
     <ClCompile>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN8_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Vista Release|x64'">
@@ -228,18 +233,21 @@
       <CompileAs>CompileAsC</CompileAs>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN7_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <ClCompile>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN7_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">
     <ClCompile>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories />
+      <PreprocessorDefinitions>_WIN8_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -253,6 +261,8 @@
   <ItemGroup>
     <ClInclude Include="NativeStructs.h" />
     <ClInclude Include="PrivateRoutines.h" />
+    <ClInclude Include="NativeStructs7.h" />
+    <ClInclude Include="NativeStructs8.h" />
     <ClInclude Include="VADPurge.h" />
     <ClInclude Include="VADPurgeDef.h" />
   </ItemGroup>

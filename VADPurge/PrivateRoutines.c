@@ -81,7 +81,7 @@ Return Value:
 
         if (P->LeftChild != NULL) {
 
-            P->LeftChild->u1.Parent = (PMMVAD)MI_MAKE_PARENT (P, P->LeftChild->u1.Balance);
+            P->LeftChild->u1.Parent = MI_MAKE_PARENT (P, P->LeftChild->u1.Balance);
         }
 
         C->RightChild = P;
@@ -109,7 +109,7 @@ Return Value:
         P->RightChild = C->LeftChild;
 
         if (P->RightChild != NULL) {
-            P->RightChild->u1.Parent = (PMMVAD)MI_MAKE_PARENT (P, P->RightChild->u1.Balance);
+            P->RightChild->u1.Parent = MI_MAKE_PARENT (P, P->RightChild->u1.Balance);
         }
 
         C->LeftChild = P;
@@ -119,7 +119,7 @@ Return Value:
     // Update parent of P, for either case above.
     //
 
-    P->u1.Parent = (PMMVAD)MI_MAKE_PARENT (C, P->u1.Balance);
+    P->u1.Parent = MI_MAKE_PARENT (C, P->u1.Balance);
 
     //
     // Finally update G <-> C links for either case above.
@@ -131,7 +131,7 @@ Return Value:
     else {
         G->RightChild = C;
     }
-    C->u1.Parent = (PMMVAD)MI_MAKE_PARENT (G, C->u1.Balance);
+    C->u1.Parent = MI_MAKE_PARENT (G, C->u1.Balance);
 }
 
 ULONG
@@ -379,7 +379,7 @@ Environment:
     TABLE_SEARCH_RESULT SearchResult;
 
     SearchResult = MiFindNodeOrParent (Table,
-                                       NodeToInsert->StartingVpn,
+                                       (ULONG_PTR)((PMMVAD_SHORT)NodeToInsert)->StartingVpn,
                                        &NodeOrParent);
 
 
@@ -401,7 +401,7 @@ Environment:
     if (SearchResult == TableEmptyTree) {
 
         Table->BalancedRoot.RightChild = NodeToInsert;
-        NodeToInsert->u1.Parent = (PMMVAD)&Table->BalancedRoot;
+        NodeToInsert->u1.Parent = &Table->BalancedRoot;
         Table->DepthOfTree = 1;
 
     }
@@ -417,7 +417,7 @@ Environment:
             NodeOrParent->RightChild = NodeToInsert;
         }
 
-        NodeToInsert->u1.Parent = (PMMVAD)NodeOrParent;
+        NodeToInsert->u1.Parent = NodeOrParent;
 
         //
         // The above completes the standard binary tree insertion, which
@@ -620,7 +620,7 @@ Environment:
         }
 
         if (EasyDelete->RightChild != NULL) {
-            EasyDelete->RightChild->u1.Parent = (PMMVAD)MI_MAKE_PARENT (Parent, EasyDelete->RightChild->u1.Balance);
+            EasyDelete->RightChild->u1.Parent = MI_MAKE_PARENT (Parent, EasyDelete->RightChild->u1.Balance);
         }
 
     //
@@ -641,7 +641,7 @@ Environment:
             a = 1;
         }
 
-        EasyDelete->LeftChild->u1.Parent = (PMMVAD)MI_MAKE_PARENT (Parent,
+        EasyDelete->LeftChild->u1.Parent = MI_MAKE_PARENT (Parent,
                                             EasyDelete->LeftChild->u1.Balance);
     }
 
@@ -763,12 +763,12 @@ Environment:
         }
         if (EasyDelete->LeftChild != NULL)
         {
-            EasyDelete->LeftChild->u1.Parent = (PMMVAD)MI_MAKE_PARENT (EasyDelete,
+            EasyDelete->LeftChild->u1.Parent = MI_MAKE_PARENT (EasyDelete,
                                             EasyDelete->LeftChild->u1.Balance);
         }
         if (EasyDelete->RightChild != NULL) 
         {
-            EasyDelete->RightChild->u1.Parent = (PMMVAD)MI_MAKE_PARENT (EasyDelete,
+            EasyDelete->RightChild->u1.Parent = MI_MAKE_PARENT (EasyDelete,
                                             EasyDelete->RightChild->u1.Balance);
         }
     }
@@ -837,6 +837,7 @@ Environment:
 #endif
     PMMADDRESS_NODE Child;
     PMMADDRESS_NODE NodeToExamine;
+    PMMVAD_SHORT    VpnCompare;
 
     if (Table->NumberGenericTableElements == 0) {
         return TableEmptyTree;
@@ -846,12 +847,13 @@ Environment:
 
     for(;;) {
 
+        VpnCompare = (PMMVAD_SHORT)NodeToExamine;
 
         //
         // Compare the buffer with the key in the tree element.
         //
 
-        if (StartingVpn < NodeToExamine->StartingVpn) {
+        if (StartingVpn < VpnCompare->StartingVpn) {
 
             Child = NodeToExamine->LeftChild;
 
@@ -870,7 +872,7 @@ Environment:
                 return TableInsertAsLeft;
             }
         }
-        else if (StartingVpn <= NodeToExamine->EndingVpn) {
+        else if (StartingVpn <= VpnCompare->EndingVpn) {
 
             //
             // This is the node.

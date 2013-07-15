@@ -10,13 +10,6 @@
 #define DEVICE_NAME     L"\\Device\\VadPurge"
 #define DOS_DEVICE_NAME L"\\DosDevices\\VADPURGE"
 
-// Debugging macro
-#ifdef DBG
-#define DPRINT(...)     VPTrace(__VA_ARGS__);
-#else
-#define DPRINT(_x_)
-#endif
-
 
 typedef struct _OFST_DEF
 {
