@@ -93,7 +93,6 @@ int _tmain(int argc, _TCHAR* argv[])
     wchar_t *path90 = L"..\\DummyDll90.dll";
     //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\ImgSearch\\Release\\ImgSearch.exe";
     //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\ClrDummy.dll";
-    //wchar_t* path = L"D:\\Games\\World of Warcraft\\wow.exe";
     //wchar_t* path = L"C:\\windows\\system32\\calc.exe";
 #endif
 
@@ -109,10 +108,10 @@ int _tmain(int argc, _TCHAR* argv[])
                                                         ds_mmap::RebaseProcess |
                                                         ds_mmap::NoDelayLoad);
 
-    if((mod = mapper.MapDll(path, flags)) != 0 /*&& mapper.MapDll(path90, ds_mmap::ManualImports) != 0*/)
+    if((mod = mapper.MapDll(path, flags)) != 0 /*&& mapper.MapDll(path90, flags) != 0*/)
     {
-        //mod = GetModuleHandle(L"DummyDll.exe");
-        //int (*proc)(char*) = (int (*)(char*))GetProcAddress(mod, "fnDummyDll");
+        mod = GetModuleHandle(L"DummyDll.dll");
+        int (*proc)(char*) = (int (*)(char*))GetProcAddress(mod, "fnDummyDll");
 
         //if(proc)
             //proc("Test");

@@ -17,6 +17,7 @@ namespace ds_mmap
             , m_pVEHCode(nullptr)
             , m_hVEH(nullptr)
         {
+            GrantPriviledge(SE_DEBUG_NAME);
             GrantPriviledge(SE_LOAD_DRIVER_NAME);
 
         #ifdef _M_AMD64
@@ -32,7 +33,7 @@ namespace ds_mmap
 
 
         /*
-            Set working Game process
+            Set working process
 
             IN:
                 pid - process ID
@@ -64,6 +65,7 @@ namespace ds_mmap
 
             Core.m_pid        = pid;
             Core.m_hProcess   = (hProcess != NULL) ? hProcess : (pid != GetCurrentProcessId() ? OpenProcess(dwAccess, FALSE, pid) : GetCurrentProcess());
+            Core.m_hMainThd   = OpenThread(THREAD_ALL_ACCESS, FALSE, GetMainThreadID());
 
             Modules.NtLoader().Init();
         }
@@ -93,20 +95,46 @@ namespace ds_mmap
         }
 
         /*
-            Return address of main module
-
-            IN:
-                void
-
-            OUT:
-                void
-
-            RETURN:
-                Address of main module
+            Get Handle of oldest existing thread in process
         */
-        DWORD CProcess::ModuleBase()
+        DWORD CProcess::GetMainThreadID()
         {
-            return Core.m_dwImageBase;
+            DWORD result = 0;
+            std::shared_ptr<void> hThreadSnapshot(CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0), CloseHandle);
+
+            if (hThreadSnapshot.get() != INVALID_HANDLE_VALUE) 
+            {
+                THREADENTRY32 tEntry = {0};
+                ULONGLONG ullCompare = MAXULONGLONG;
+
+                tEntry.dwSize = sizeof(THREADENTRY32);
+                
+                //
+                // Find oldest thread
+                //
+                for (BOOL success = Thread32First(hThreadSnapshot.get(), &tEntry); 
+                    success && GetLastError() != ERROR_NO_MORE_FILES; 
+                    success = Thread32Next(hThreadSnapshot.get(), &tEntry))
+                {
+                    if (tEntry.th32OwnerProcessID != Core.m_pid)
+                        continue;
+                        
+                    FILETIME times[4] = {0};
+                    std::shared_ptr<void> hThread(OpenThread(THREAD_ALL_ACCESS, FALSE, tEntry.th32ThreadID), CloseHandle);
+
+                    GetThreadTimes(hThread.get(), &times[0], &times[1], &times[2], &times[3]);
+
+                    ULONGLONG ullCurrent = ((ULONGLONG)times[0].dwHighDateTime << 32) | times[0].dwLowDateTime;
+
+                    if(ullCurrent < ullCompare)
+                    {
+                        ullCompare = ullCurrent;
+                        result     = tEntry.th32ThreadID;
+                    }
+                }
+            }
+
+            return result;
         }
 
         /*
@@ -154,7 +182,6 @@ namespace ds_mmap
                 return GetLastError();
 
         #ifdef _M_AMD64 
-            // Resolve compiler incremental table address, if any
             AsmJit::Assembler ea;
             AsmJit::Label lExit = ea.newLabel();
 
@@ -184,7 +211,7 @@ namespace ds_mmap
             ea.mov(AsmJit::rdx, pTargetBase);
             ea.mov(AsmJit::qword_ptr(AsmJit::rax, 0x38), AsmJit::rdx);
             ea.bind(lExit);
-            ea.xor_(AsmJit::eax, AsmJit::eax);
+            ea.xor_(AsmJit::rax, AsmJit::rax);
             ea.ret();         
 
             if(Core.Write(m_pVEHCode, ea.getCodeSize(), ea.make()) != ERROR_SUCCESS)
@@ -228,6 +255,14 @@ namespace ds_mmap
                 m_pVEHCode = nullptr;
                 return GetLastError();
             }
+
+             /*if(Core.Write(m_pVEHCode, SizeOfProc(pFunc), pFunc) != ERROR_SUCCESS)
+             {
+                 Core.Free(m_pVEHCode);
+                 m_pVEHCode = nullptr;
+                 return GetLastError();
+             }*/
+
         #endif
 
             ah.GenPrologue();
@@ -235,7 +270,7 @@ namespace ds_mmap
             //
             // AddVectoredExceptionHandler(0, pHandler);
             //
-            ah.GenCall(&AddVectoredExceptionHandler, {0, (size_t)m_pVEHCode});
+            ah.GenCall(&AddVectoredExceptionHandler, { 0, (size_t)m_pVEHCode });
 
             ah.SaveRetValAndSignalEvent();
             ah.GenEpilogue();
@@ -274,6 +309,13 @@ namespace ds_mmap
 
         /*
             Unlink memory region from process VAD list
+
+            IN:
+                pBase - region base address
+                size - region size
+
+            RETURN:
+                Error code
         */
         DWORD CProcess::UnlinkVad( void* pBase, size_t size )
         {
@@ -302,7 +344,7 @@ namespace ds_mmap
                 BOOL ret = TRUE;
 
                 //
-                // Adjust maximum number of locked pages
+                // Adjust working set and lock pages
                 //
                 SIZE_T sizeMin = 0, sizeMax = 0;
                 GetProcessWorkingSetSize(Core.m_hProcess, &sizeMin, &sizeMax);
@@ -318,13 +360,16 @@ namespace ds_mmap
                 // Continue only if pages are locked
                 if(result != 0)
                 {
-                    PURGE_DATA data = { Core.m_pid, 1, { (ULONGLONG)pBase, size} };
+                    PURGE_DATA data = { Core.m_pid, 1, { (ULONGLONG)pBase, size } };
                     DWORD junk      = 0;
 
                     ret = DeviceIoControl(hFile, (DWORD)IOCTL_VADPURGE_PURGE, &data, sizeof(data), NULL, 0, &junk, NULL);
                 }
                 else
-                    SetLastError(ERROR_ACCESS_DENIED);
+                {
+                    ret = ERROR_ACCESS_DENIED;
+                    SetLastError(ret);
+                }
 
                 CloseHandle(hFile);
 
@@ -342,7 +387,6 @@ namespace ds_mmap
 
             RETURN:
                 Error code
-
         */
         DWORD CProcess::LoadDriver( const std::wstring& name )
         {
@@ -416,7 +460,7 @@ namespace ds_mmap
 
             if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,FALSE, &hToken))
             {
-                if (GetLastError()!=ERROR_NO_TOKEN)
+                if (GetLastError() != ERROR_NO_TOKEN)
                     return GetLastError();
 
                 if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hToken))
@@ -481,12 +525,85 @@ namespace ds_mmap
 
         #else
 
-        LONG __declspec(naked) CALLBACK CProcess::VectoredHandler32( _In_ PEXCEPTION_POINTERS /*ExceptionInfo*/ )
+        // warning C4733: Inline asm assigning to 'FS:0' : handler not registered as safe handler
+        /*#pragma warning(disable : 4733)
+
+        typedef _EXCEPTION_DISPOSITION(__cdecl *_pexcept_handler)
+            (
+            _EXCEPTION_RECORD *ExceptionRecord,
+            void * EstablisherFrame,
+            _CONTEXT *ContextRecord,
+            void * DispatcherContext
+            );
+
+        //
+        // Old handler
+        //
+        LONG __declspec(naked) CALLBACK CProcess::VectoredHandler32( _In_ PEXCEPTION_POINTERS ExceptionInfo )
         {
             EXCEPTION_REGISTRATION_RECORD  *pFs;
-            PRTL_INVERTED_FUNCTION_TABLE    pTable;
-            DWORD                          *pDec, *pStart, x;
-            bool                            newHandler;
+            EXCEPTION_DISPOSITION           res;
+
+            __asm
+            {
+                push ebp
+                mov ebp, esp
+                sub esp, __LOCAL_SIZE
+            }
+
+            pFs = (EXCEPTION_REGISTRATION_RECORD*)__readfsdword(0);
+            res = ExceptionContinueSearch;
+
+            // Prevent CRT from calling handlers in chain with EH_UNWINDING
+            for(; res == ExceptionContinueSearch && pFs && pFs != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff; pFs = pFs->Next, __writefsdword(0, (DWORD)pFs))
+            {
+                ExceptionInfo->ExceptionRecord->ExceptionFlags &= ~EXCEPTION_UNWIND;
+
+                if(pFs->Handler)
+                {
+                    // Last frame contains special handler with __stdcall convention
+                    if(pFs->Next != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff)
+                        res = ((_pexcept_handler)pFs->Handler)(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
+                    else
+                        res = pFs->Handler(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
+
+                    // Unwind stack properly
+                    if(res == ExceptionContinueSearch)
+                    {
+                        ExceptionInfo->ExceptionRecord->ExceptionFlags |= EXCEPTION_UNWIND;
+
+                        if(pFs->Next != (EXCEPTION_REGISTRATION_RECORD*)0xffffffff)
+                            res = ((_pexcept_handler)pFs->Handler)(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
+                        else
+                            res = pFs->Handler(ExceptionInfo->ExceptionRecord, pFs, ExceptionInfo->ContextRecord, NULL);
+                    }
+                }
+            }
+
+            // We are screwed if got here
+            return EXCEPTION_CONTINUE_SEARCH;
+            __asm
+            {
+                mov esp, ebp
+                pop ebp
+
+                mov eax, EXCEPTION_CONTINUE_SEARCH
+                ret 4
+            }
+        }*/
+
+        //
+        // Rewritten handler
+        //
+        LONG __declspec(naked) CALLBACK CProcess::VectoredHandler32( _In_ PEXCEPTION_POINTERS /*ExceptionInfo*/ )
+        {
+            PEXCEPTION_REGISTRATION_RECORD      pFs;
+            PRTL_INVERTED_FUNCTION_TABLE7       pTable;// = (PRTL_INVERTED_FUNCTION_TABLE7)0x77d8c000;
+            PRTL_INVERTED_FUNCTION_TABLE_ENTRY  pEntries;
+            PDWORD                              pDec, pStart;
+            DWORD                               verMajor, verMinor;
+            PPEB                                peb;
+            bool                                newHandler;
             
             __asm
             {
@@ -500,6 +617,16 @@ namespace ds_mmap
 
             pFs = (PEXCEPTION_REGISTRATION_RECORD)__readfsdword(0);
 
+            // Get OS version
+            peb = (PPEB)__readfsdword(0x30);
+            verMajor = *(DWORD*)((size_t)peb + 0xA4);
+            verMinor = *(DWORD*)((size_t)peb + 0xA8);
+
+            if(verMajor >= 6 && verMinor >= 2)
+                pEntries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)pTable + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE8, Entries));
+            else
+                pEntries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)pTable + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE7, Entries));
+
             //
             // Add each handler to LdrpInvertedFunctionTable
             //
@@ -508,17 +635,18 @@ namespace ds_mmap
                 // Find image for handler
                 for(DWORD imageIndex = 0; imageIndex < pTable->Count; imageIndex++)
                 {
-                    if((size_t)pFs->Handler >= (size_t)pTable->Entries[imageIndex].ImageBase && 
-                        (size_t)pFs->Handler <= (size_t)pTable->Entries[imageIndex].ImageBase + pTable->Entries[imageIndex].ImageSize)
+                    if((size_t)pFs->Handler >= (size_t)pEntries[imageIndex].ImageBase && 
+                        (size_t)pFs->Handler <= (size_t)pEntries[imageIndex].ImageBase + pEntries[imageIndex].ImageSize)
                     {
-                        // Image is ntdll, skip it
-                        if(imageIndex == 0)
-                            break;
-
                         newHandler = false;
 
-                        //pStart = (DWORD*)DecodeSystemPointer(pTable->Entries[imageIndex].ExceptionDirectory);
-                        pStart = (DWORD*)((int(__stdcall*)(PVOID))0xDEADC0DE)(pTable->Entries[imageIndex].ExceptionDirectory);
+                        // Win8 always has ntdll.dll as first image, so we can safely skip its handlers
+                        // Also ntdll.dll ExceptionDirectory isn't Encoded via RtlEncodeSystemPointer (it's plain address)
+                        if(verMajor >= 6 && verMinor >= 2 && imageIndex == 0)
+                            break;
+
+                        //pStart = (DWORD*)DecodeSystemPointer(pEntries[imageIndex].ExceptionDirectory);
+                        pStart = (DWORD*)((int(__stdcall*)(PVOID))0xDEADC0DE)(pEntries[imageIndex].ExceptionDirectory);
 
                         //
                         // Add handler as fake SAFESEH record
@@ -527,30 +655,30 @@ namespace ds_mmap
                         {
                             if(*pDec == 0)
                             {
-                                *pDec = (size_t)pFs->Handler - (size_t)pTable->Entries[imageIndex].ImageBase;
-                                pTable->Entries[imageIndex].ExceptionDirectorySize++;
+                                *pDec = (size_t)pFs->Handler - (size_t)pEntries[imageIndex].ImageBase;
+                                pEntries[imageIndex].ExceptionDirectorySize++;
                                 newHandler = true;
 
                                 break;
                             }
                             // Already in table
-                            else if((*pDec + (DWORD)pTable->Entries[imageIndex].ImageBase) == (DWORD)pFs->Handler)
+                            else if((*pDec + (DWORD)pEntries[imageIndex].ImageBase) == (DWORD)pFs->Handler)
                                 break;
                         }
 
                         // Sort handler addresses
                         if(newHandler)
-                            for(DWORD i = 0 ; i < pTable->Entries[imageIndex].ExceptionDirectorySize; i++)
-                                for(DWORD j = pTable->Entries[imageIndex].ExceptionDirectorySize - 1; j > i; j--)
+                            for(DWORD i = 0 ; i < pEntries[imageIndex].ExceptionDirectorySize; i++)
+                                for(DWORD j = pEntries[imageIndex].ExceptionDirectorySize - 1; j > i; j--)
                                     if(pStart[j-1] > pStart[j])
                                     {
-                                        x           = pStart[j-1];
-                                        pStart[j-1] = pStart[j];
-                                        pStart[j]   = x;
+                                        pStart[j-1] ^= pStart[j];
+                                        pStart[j]   ^= pStart[j-1];
+                                        pStart[j-1] ^= pStart[j];
                                     }
                     }
                 }
-            }         
+            }
 
             // Return control to SEH
             //return EXCEPTION_CONTINUE_SEARCH;

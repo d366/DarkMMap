@@ -49,8 +49,6 @@ namespace ds_mmap
 {
     namespace ds_process
     {
-        
-
         class CNtLdr
         {
         public:
@@ -71,7 +69,7 @@ namespace ds_mmap
 
             /*
             */
-            PRTL_INVERTED_FUNCTION_TABLE LdrpInvertedFunctionTable() const { return m_LdrpInvertedFunctionTable; }
+            void* LdrpInvertedFunctionTable() const { return m_LdrpInvertedFunctionTable; }
 
         private:
 
@@ -120,6 +118,7 @@ namespace ds_mmap
             /*
             */
             CNtLdr& operator=(const CNtLdr& other);
+
         private:
             CMemCore&       m_memory;
             OSVERSIONINFO   m_verinfo;
@@ -127,10 +126,8 @@ namespace ds_mmap
             size_t          m_LdrpModuleIndexBase;
             size_t          m_LdrpModuleBase;
             size_t          m_LdrHeapBase;
-
-            PRTL_INVERTED_FUNCTION_TABLE m_LdrpInvertedFunctionTable;
-
-            int (__stdcall *m_RtlInsertInvertedFunctionTable)(void*, size_t);
+            void           *m_LdrpInvertedFunctionTable;
+            void           *m_RtlInsertInvertedFunctionTable;
         };
     }
 }

@@ -7,12 +7,10 @@ namespace ds_mmap
         CMemCore::CMemCore(void)
             : m_hProcess(NULL)
             , m_hMainThd(NULL)
-            , m_dwImageBase(0)
             , m_pid(0)
             , m_hWorkThd(NULL)
             , m_hWaitEvent(NULL)
             , m_pWorkerCode(nullptr)
-            , m_pW8DllBase(nullptr)
             , m_pCodecave(nullptr)
             , m_codeSize(0)
         {
@@ -51,18 +49,22 @@ namespace ds_mmap
         {
             SetLastError(ERROR_SUCCESS);
 
-            pAddr = VirtualAllocEx(m_hProcess, pAddr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-            if(!pAddr)
+            void* pTmp = VirtualAllocEx(m_hProcess, pAddr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+            if(!pTmp)
             {
-                pAddr = VirtualAllocEx(m_hProcess, NULL, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-                if(pAddr)
+                pTmp = VirtualAllocEx(m_hProcess, NULL, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+                if(pTmp)
                 {
-                    m_Allocations.emplace_back(pAddr);
+                    pAddr = pTmp;
+                    m_Allocations.emplace_back(pTmp);
                     SetLastError(ERROR_IMAGE_NOT_AT_BASE);
                 }
             }
             else
+            {
+                pAddr = pTmp;
                 m_Allocations.emplace_back(pAddr);            
+            }
 
             return GetLastError();
         }
@@ -395,6 +397,46 @@ namespace ds_mmap
         }
 
         /*
+            Copy executable code to codecave for future execution
+
+            IN:
+                pCode - code to copy
+                size - code size
+
+            RETURN:
+                Error code
+        */
+        DWORD CMemCore::PrepareCodecave( PVOID pCode, size_t size )
+        {
+            // Allocate new codecave
+            if(!m_pCodecave)
+            {
+                if(Allocate((size > 0x1000) ? size : 0x1000, m_pCodecave) != ERROR_SUCCESS)
+                    return GetLastError();
+
+                m_codeSize = size;
+            }
+
+            // Reallocate for new size
+            else if(size > m_codeSize)
+            {
+                Free(m_pCodecave);
+                m_pCodecave = nullptr;
+
+                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
+                    return GetLastError();
+
+                m_codeSize = size;
+            }
+
+            if(Write(m_pCodecave, size, pCode) != ERROR_SUCCESS)
+                return GetLastError();
+
+            return ERROR_SUCCESS;
+        }
+
+
+        /*
         */
         DWORD CMemCore::TerminateWorkerThread()
         {
@@ -438,28 +480,10 @@ namespace ds_mmap
         {
             DWORD dwResult = ERROR_SUCCESS;
 
-            // Allocate new codecave
-            if(!m_pCodecave)
-            {
-                if(Allocate((size > 0x1000) ? size : 0x1000, m_pCodecave) != ERROR_SUCCESS)
-                    return GetLastError();
-
-                m_codeSize = size;
-            }
-            // Reallocate for new size
-            else if(size > m_codeSize)
-            {
-                Free(m_pCodecave);
-                m_pCodecave = nullptr;
-
-                if(Allocate(size, m_pCodecave) != ERROR_SUCCESS)
-                    return GetLastError();
-
-                m_codeSize = size;
-            }
-
-            if(Write(m_pCodecave, size, pCode) != ERROR_SUCCESS)
-                return GetLastError();
+            // Write code
+            dwResult = PrepareCodecave(pCode, size);
+            if(dwResult != ERROR_SUCCESS)
+                return dwResult;
 
             // Create thread if needed
             if(!m_hWorkThd)
@@ -476,6 +500,70 @@ namespace ds_mmap
 
             // Ensure APC function fully returns
             Sleep(1);
+
+            return dwResult;
+        }
+
+        /*
+            Execute code in context of existing thread
+    
+            IN:
+                pCode - code to execute
+                size - code size
+                thread - handle of thread to execute code in
+    
+            OUT:
+                callResult - last function result
+    
+            RETURN:
+                Error code
+            */
+        DWORD CMemCore::ExecInAnyThread( PVOID pCode, size_t size, size_t& callResult, HANDLE hThread /*= NULL */ )
+        {
+            DWORD dwResult = ERROR_SUCCESS;
+            CONTEXT ctx    = {0};
+
+            if(hThread == NULL)
+                hThread = m_hMainThd;
+
+            // Write code
+            dwResult = PrepareCodecave(pCode, size);
+            if(dwResult != ERROR_SUCCESS)
+                return dwResult;
+
+            SuspendThread(hThread);
+
+            ctx.ContextFlags = CONTEXT_FULL;
+
+            if(GetThreadContext(hThread, &ctx))
+            {
+                AsmJit::Assembler a;
+                AsmJitHelper ah(a);
+
+                //a.pushad();
+                //ah.GenCall(m_pCodecave, { (size_t)m_pWorkerCode });
+                //a.popad();
+                //a.push(ctx.Eip);
+                a.ret();
+
+                if(Write((uint8_t*)m_pCodecave + size, a.getCodeSize(), a.make()) == ERROR_SUCCESS)
+                {
+                    //ctx.Eip = (size_t)m_pCodecave + size;
+                    SetThreadContext(hThread, &ctx);
+                }
+                else
+                    dwResult = GetLastError();
+            }
+            else
+                dwResult = GetLastError();
+
+            ResumeThread(hThread);
+            
+            if(dwResult == ERROR_SUCCESS)
+            {
+                dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
+                callResult = Read<size_t>((size_t)m_pWorkerCode);
+            }
 
             return dwResult;
         }
@@ -560,6 +648,26 @@ namespace ds_mmap
 
             return pbi.PebBaseAddress;
         }
-        
+
+        /*
+            Retrieve thread TEB address
+
+            RETURN:
+                TEB address
+        */
+        PTEB CMemCore::GetTebBase(HANDLE hThread /*= 0*/)
+        {
+            THREAD_BASIC_INFORMATION tbi = {0};    
+            ULONG bytes = 0;
+
+            if(hThread == NULL)
+                hThread = m_hMainThd;
+
+            NtQueryInformationThread(hThread, (THREADINFOCLASS)0, &tbi, sizeof(tbi), &bytes);
+
+            return tbi.TebBaseAddress;
+        }
+
+
     }
 }

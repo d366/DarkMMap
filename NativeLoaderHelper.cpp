@@ -119,10 +119,13 @@ namespace ds_mmap
             return false;
         }
 
+
         /*
         */
         bool CNtLdr::InsertInvertedFunctionTable( void* ModuleBase, size_t ImageSize )
         { 
+            RTL_INVERTED_FUNCTION_TABLE7 table = {0};
+            PRTL_INVERTED_FUNCTION_TABLE_ENTRY Entries = nullptr;
             AsmJit::Assembler a;
             AsmJitHelper ah(a);
             size_t result = 0;
@@ -133,23 +136,29 @@ namespace ds_mmap
 
             ah.GenPrologue();
 
-            ah.GenCall(m_RtlInsertInvertedFunctionTable, { (size_t)ModuleBase, ImageSize });
+            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
+            {
+                ah.GenCall(m_RtlInsertInvertedFunctionTable, { (size_t)ModuleBase, ImageSize });
+                Entries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)&table + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE8, Entries));
+            }
+            else
+            {
+                ah.GenCall(m_RtlInsertInvertedFunctionTable, { (size_t)m_LdrpInvertedFunctionTable, (size_t)ModuleBase, ImageSize });
+                Entries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)&table + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE7, Entries));
+            }
 
             ah.SaveRetValAndSignalEvent();
             ah.GenEpilogue();
 
-            m_memory.ExecInWorkerThread(a.make(), a.getCodeSize(), result);
-
-            RTL_INVERTED_FUNCTION_TABLE table = {0};
-
-            m_memory.Read(m_LdrpInvertedFunctionTable, sizeof(RTL_INVERTED_FUNCTION_TABLE), &table);
+            m_memory.ExecInWorkerThread(a.make(), a.getCodeSize(), result);            
+            m_memory.Read(m_LdrpInvertedFunctionTable, sizeof(table), &table);
 
             for(DWORD i = 0; i < table.Count; i++)
             {
-                if(table.Entries[i].ImageBase == ModuleBase)
+                if(Entries[i].ImageBase == ModuleBase)
                 {
                     // If Image has SAFESEH, RtlInsertInvertedFunctionTable is enough
-                    if(table.Entries[i].ExceptionDirectorySize != 0)
+                    if(Entries[i].ExceptionDirectorySize != 0)
                         return true;
 
                     //
@@ -162,7 +171,7 @@ namespace ds_mmap
                     m_memory.Allocate(sizeof(DWORD)*0x100, (PVOID&)pImgEntry);
 
                     // m_LdrpInvertedFunctionTable->Entries[i].ExceptionDirectory
-                    size_t field_ofst = (size_t)&table.Entries[i].ExceptionDirectory - (size_t)&table;
+                    size_t field_ofst = (size_t)&Entries[i].ExceptionDirectory - (size_t)&table;
 
                     return (m_memory.Write((size_t)m_LdrpInvertedFunctionTable + field_ofst, RtlEncodeSystemPointer(pImgEntry)) == ERROR_SUCCESS);
                 }
@@ -571,8 +580,8 @@ namespace ds_mmap
 
                 if(!foundData.empty())
                 {
-                    m_RtlInsertInvertedFunctionTable = (int(__stdcall*)(void*, size_t))foundData.front();
-                    m_LdrpInvertedFunctionTable      = (PRTL_INVERTED_FUNCTION_TABLE)(*(size_t*)((size_t)m_RtlInsertInvertedFunctionTable + 0x26));
+                    m_RtlInsertInvertedFunctionTable = (void*)foundData.front();
+                    m_LdrpInvertedFunctionTable      = (*(void**)((size_t)m_RtlInsertInvertedFunctionTable + 0x26));
                 }
             #endif
 
@@ -587,14 +596,14 @@ namespace ds_mmap
                 m_memory.FindPattern("\x8b\xff\x55\x8b\xec\x56\x68", "xxxxxxx", pStart, scanSize, foundData);
 
                 if(!foundData.empty())
-                    m_RtlInsertInvertedFunctionTable = (int(__stdcall*)(void*, size_t))foundData.front();
+                    m_RtlInsertInvertedFunctionTable = (void*)foundData.front();
 
                 // RtlLookupFunctionTable + 0x11
                 // 89 5D E0 38
                 m_memory.FindPattern("\x89\x5D\xE0\x38", "xxxx", pStart, scanSize, foundData);
                 
                 if(!foundData.empty())
-                    m_LdrpInvertedFunctionTable = (PRTL_INVERTED_FUNCTION_TABLE)(*(size_t*)(foundData.front() + 0x1B));
+                    m_LdrpInvertedFunctionTable = (*(void**)(foundData.front() + 0x1B));
 
             #endif
             }

@@ -58,14 +58,6 @@ namespace ds_mmap
                     Validity flag
             */
             bool IsValid();
-    
-            /*
-                Return address of main module
-
-                RETURN:
-                    Address of main module
-            */
-            DWORD ModuleBase();
 
             /*
                 Disable DEP for target process
@@ -93,6 +85,14 @@ namespace ds_mmap
             DWORD RemoveVEH();
 
             /*
+                Unlink memory region from process VAD list
+
+                IN:
+                    pBase - region base address
+                    size - region size
+
+                RETURN:
+                    Error code
             */
             DWORD UnlinkVad(void* pBase, size_t size);
 
@@ -128,6 +128,11 @@ namespace ds_mmap
                     Error code
             */
             DWORD GrantPriviledge( const std::wstring& name );
+
+            /*
+                Get Handle of oldest existing thread in process
+            */
+            DWORD GetMainThreadID();
 
         public:
             CMemCore    Core;       // Process core memory routines

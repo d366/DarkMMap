@@ -102,7 +102,6 @@ bool CImageNET::Parse()
                 WCHAR            wmName[1024]   = {0};
                 PCCOR_SIGNATURE  pbySigBlob     = nullptr;
 
-
                 for (UINT j = 0; j < dwcTokens; j++)
                 {
                     // get method information

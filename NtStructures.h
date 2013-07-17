@@ -172,15 +172,41 @@ typedef struct _RTL_INVERTED_FUNCTION_TABLE_ENTRY
     PVOID                         ImageBase;
     ULONG                         ImageSize;
     ULONG                         ExceptionDirectorySize;
+
 } RTL_INVERTED_FUNCTION_TABLE_ENTRY, * PRTL_INVERTED_FUNCTION_TABLE_ENTRY;
 
-typedef struct _RTL_INVERTED_FUNCTION_TABLE
+typedef struct _RTL_INVERTED_FUNCTION_TABLE7
 {
     ULONG Count;
-    ULONG MaxCount; // always 160 in Windows Server 2003
-    ULONG Pad[ 0x2 ];
+    ULONG MaxCount;
+    ULONG Pad[0x1];
     RTL_INVERTED_FUNCTION_TABLE_ENTRY Entries[0x200];
-} RTL_INVERTED_FUNCTION_TABLE, * PRTL_INVERTED_FUNCTION_TABLE;
+
+} RTL_INVERTED_FUNCTION_TABLE7, * PRTL_INVERTED_FUNCTION_TABLE7;
+
+typedef struct _RTL_INVERTED_FUNCTION_TABLE8
+{
+    ULONG Count;
+    ULONG MaxCount;
+    ULONG Pad[0x2];
+    RTL_INVERTED_FUNCTION_TABLE_ENTRY Entries[0x200];
+
+} RTL_INVERTED_FUNCTION_TABLE8, * PRTL_INVERTED_FUNCTION_TABLE8;
+
+typedef struct _THREAD_BASIC_INFORMATION
+{
+    NTSTATUS    ExitStatus;
+    PTEB        TebBaseAddress;
+    struct
+    {
+        PVOID p1;
+        PVOID p2;
+    }ClientId;
+    KAFFINITY   AffinityMask;
+    LONG        Priority;
+    LONG        BasePriority;
+
+} THREAD_BASIC_INFORMATION, *PTHREAD_BASIC_INFORMATION;
 
 //
 // Api schema structures

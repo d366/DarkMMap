@@ -57,6 +57,7 @@ namespace ds_mmap
 
                 IN:
                     path - dll path
+                    baseName - name of base import dll (API Schema resolve only)
 
                 OUT:
                     path - resolved path
@@ -64,8 +65,8 @@ namespace ds_mmap
                 RETURN:
                     Error code
             */
-            DWORD ResolvePath(std::string& path,  eResolveFlag flags);
-            DWORD ResolvePath(std::wstring& path, eResolveFlag flags);
+            DWORD ResolvePath(std::string& path,  eResolveFlag flags, const std::wstring& baseName = L"");
+            DWORD ResolvePath(std::wstring& path, eResolveFlag flags, const std::wstring& baseName = L"");
 
             /*
                 Get specific module address
@@ -73,7 +74,7 @@ namespace ds_mmap
                 IN:
                     proc - process ID
                     modname - module name
-
+                    baseModule - name of base import dll (API Schema resolve only)
                 OUT:
                     void
 
@@ -81,8 +82,8 @@ namespace ds_mmap
                     Module address
                     0 - if not found
             */
-            HMODULE GetModuleAddress( const char* modname, bool skipManualModules = false );
-            HMODULE GetModuleAddress( const wchar_t* modname, bool skipManualModules = false );
+            HMODULE GetModuleAddress( const char* modname,    bool skipManualModules = false, const wchar_t* baseModule = L"" );
+            HMODULE GetModuleAddress( const wchar_t* modname, bool skipManualModules = false, const wchar_t* baseModule = L"" );
 
             /*
                 Get address of function in another process
@@ -98,7 +99,7 @@ namespace ds_mmap
                     Function address
                     0 - if not found
             */
-            FARPROC GetProcAddressEx( HMODULE hMod, const char* name );   
+            FARPROC GetProcAddressEx( HMODULE hMod, const char* name, const wchar_t* baseModule = L"" );   
 
             /*
                 Add manually mapped module to list

@@ -117,6 +117,7 @@ namespace ds_mmap
 
             IN:
                 path - dll path
+                baseName - name of base import dll (API Schema resolve only)
 
             OUT:
                 path - resolved path
@@ -124,13 +125,15 @@ namespace ds_mmap
             RETURN:
                 Error code
             */
-        DWORD CMemModules::ResolvePath(std::string& path, eResolveFlag flags)
+        DWORD CMemModules::ResolvePath(std::string& path, eResolveFlag flags, const std::wstring& baseName /*= ""*/)
         {
             std::wstring wpathStr;
+            std::wstring wbaseStr;
 
             // TODO: proper ANSI<-->UTF-16 text conversion
             //       current conversion doesn't support anything except ASCII
             wpathStr.assign(path.begin(), path.end());
+            wbaseStr.assign(baseName.begin(), baseName.end());
 
             DWORD res = ResolvePath(wpathStr, flags);
 
@@ -144,6 +147,7 @@ namespace ds_mmap
 
             IN:
                 path - dll path
+                baseName - name of base import dll (API Schema resolve only)
 
             OUT:
                 path - resolved path
@@ -151,7 +155,7 @@ namespace ds_mmap
             RETURN:
                 Error code
         */
-        DWORD CMemModules::ResolvePath(std::wstring& path, eResolveFlag flags)
+        DWORD CMemModules::ResolvePath(std::wstring& path, eResolveFlag flags, const std::wstring& baseName /*= L""*/)
         {
             wchar_t tmpPath[4096] = {0};
 
@@ -179,7 +183,11 @@ namespace ds_mmap
 
             if(iter != m_ApiSchemaMap.end())
             {
-                path.assign(iter->second.back().begin(), iter->second.back().end());
+                // Select appropriate api host
+                if(iter->second.front() != baseName)
+                    path.assign(iter->second.front().begin(), iter->second.front().end());
+                else
+                    path.assign(iter->second.back().begin(), iter->second.back().end());
 
                 if(ProbeSxSRedirect(path) == ERROR_SUCCESS)
                     return ERROR_SUCCESS;
@@ -382,6 +390,7 @@ namespace ds_mmap
             IN:
                 proc - process ID
                 modname - module name
+                name of base import dll (API Schema resolve only)
 
             OUT:
                 void
@@ -390,13 +399,13 @@ namespace ds_mmap
                 Module address
                 0 - if not found
         */
-        HMODULE CMemModules::GetModuleAddress( const char* modname, bool skipManualModules/* = false*/ )
+        HMODULE CMemModules::GetModuleAddress( const char* modname, bool skipManualModules/* = false*/, const wchar_t* baseModule /*= L""*/ )
         {
             wchar_t wPath[MAX_PATH] = {0};
 
             MultiByteToWideChar(CP_ACP, 0, modname, (int)strlen(modname), wPath, MAX_PATH);
 
-            return GetModuleAddress(wPath, skipManualModules);
+            return GetModuleAddress(wPath, skipManualModules, baseModule);
         }
 
         /*
@@ -405,6 +414,7 @@ namespace ds_mmap
             IN:
                 proc - process ID
                 modname - module name
+                name of base import dll (API Schema resolve only)
 
             OUT:
                 void
@@ -413,21 +423,24 @@ namespace ds_mmap
                 Module address
                 0 - if not found
         */
-        HMODULE CMemModules::GetModuleAddress( const wchar_t* modname, bool skipManualModules /*= false*/ )
+        HMODULE CMemModules::GetModuleAddress( const wchar_t* modname, bool skipManualModules /*= false*/, const wchar_t* baseModule /*= L""*/ )
         {
             HANDLE snapshot         = 0;
             MODULEENTRY32 mod       = {sizeof(MODULEENTRY32), 0};
             wchar_t wPath[MAX_PATH] = {0};
+            wchar_t wBase[MAX_PATH] = {0};
 
             if( !modname )
                 return 0;
 
             wcscpy_s(wPath, MAX_PATH, modname);
+            wcscpy_s(wBase, MAX_PATH, baseModule);
             PathStripPathW(wPath);
+            PathStripPathW(wBase);
 
             std::wstring wName(wPath);
 
-            ResolvePath(wName, ApiSchemaOnly);
+            ResolvePath(wName, ApiSchemaOnly, wBase);
 
             // Search manually loaded modules
             if(!skipManualModules)
@@ -482,7 +495,7 @@ namespace ds_mmap
                 Function address
                 0 - if not found shdocvw.dll 0x8d
         */
-        FARPROC CMemModules::GetProcAddressEx( HMODULE hMod, const char* name )
+        FARPROC CMemModules::GetProcAddressEx( HMODULE hMod, const char* name, const wchar_t* baseModule /*= L"" */ )
         {
             std::unique_ptr<IMAGE_EXPORT_DIRECTORY> expData;
 
@@ -551,7 +564,7 @@ namespace ds_mmap
                             std::string strDll  = chainExp.substr(0, chainExp.find(".")) + ".dll";
                             std::string strName = chainExp.substr(chainExp.find(".") + 1, strName.npos);
 
-                            HMODULE hChainMod = GetModuleAddress(strDll.c_str());
+                            HMODULE hChainMod = GetModuleAddress(strDll.c_str(), false, baseModule);
 
                             if(hChainMod == NULL)
                                 hChainMod = SimpleInject(strDll);
@@ -591,7 +604,7 @@ namespace ds_mmap
                 wchar_t apiName[MAX_PATH] = {0};
                 wchar_t dllName[MAX_PATH] = {0};
 
-                // For unknown reason std::wstring usage leads to crash in CMemDll dtor o_O
+                // For unknown reason std::wstring usage leads to crash in CMemModules dtor o_O
                 memcpy(apiName, (uint8_t*)pHeader + pEntry->OffsetToName, pEntry->NameSize);
                 swprintf_s(dllName, MAX_PATH, L"API-%s.dll", apiName);
                 std::transform(dllName, dllName + MAX_PATH, dllName, ::tolower);
@@ -623,9 +636,9 @@ namespace ds_mmap
         */
         std::wstring CMemModules::GetProcessDirectory()
         {
-            HANDLE snapshot         = 0;
-            MODULEENTRY32 mod       = {sizeof(MODULEENTRY32), 0};
-            std::wstring path       = L"";
+            HANDLE snapshot   = 0;
+            MODULEENTRY32 mod = {sizeof(MODULEENTRY32), 0};
+            std::wstring path = L"";
 
             if((snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, m_memory.m_pid)) == INVALID_HANDLE_VALUE )
                 return L"";

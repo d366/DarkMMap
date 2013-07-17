@@ -81,7 +81,7 @@ namespace ds_mmap
             m_pTopImage = pOldImage;
             return 0;
         }
-
+        
         // Open target process and create thread for code execution
         if(m_TargetProcess.Core.CreateWorkerThread() != ERROR_SUCCESS)
         {
@@ -98,9 +98,10 @@ namespace ds_mmap
             return hMod;
         }
 
+        // Use ASLR aware image base
         m_pTopImage->pTargetBase = (void*)m_pTopImage->ImagePE.ImageBase();
 
-        // Try to map image at it's original base (ASLR is taken into account)
+        // Try to map image at it's original base
         DWORD dwResult = m_TargetProcess.Core.Allocate(m_pTopImage->ImagePE.ImageSize(), m_pTopImage->pTargetBase);
         if(dwResult != ERROR_SUCCESS && dwResult != ERROR_IMAGE_NOT_AT_BASE)
         {
@@ -155,7 +156,7 @@ namespace ds_mmap
         }
 
         // Apply proper memory protection for sections
-        //ProtectImageMemory();
+        ProtectImageMemory();
 
         // Make exception handling possible (C and C++)
         if(/*m_TargetProcess.DisabeDEP() != ERROR_SUCCESS &&*/
@@ -165,6 +166,10 @@ namespace ds_mmap
             m_pTopImage = pOldImage;
             return 0;
         }
+
+        // Unlink image from VAD list
+        if(m_pTopImage->flags & UnlinkVAD)
+            m_TargetProcess.UnlinkVad(m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize());
 
         // TLS stuff
         m_pTopImage->ImagePE.GetTLSCallbacks(m_pTopImage->pTargetBase, m_pTopImage->tlsCallbacks);
@@ -177,11 +182,7 @@ namespace ds_mmap
 
         // Stupid security cookie
         InitializeCookie();
-
-        // Unlink image from VAD list
-        if(m_pTopImage->flags & UnlinkVAD)
-            m_TargetProcess.UnlinkVad(m_pTopImage->pTargetBase, m_pTopImage->ImagePE.ImageSize());
-
+        
         // Topmost image, change process base module address if needed
         if(flags & RebaseProcess && m_pTopImage->ImagePE.IsExe() && pOldImage == nullptr)
             m_TargetProcess.Core.Write((size_t)m_TargetProcess.Core.GetPebBase() + 2 * WordSize, (size_t)m_pTopImage->pTargetBase);
@@ -387,21 +388,24 @@ namespace ds_mmap
             IMAGE_THUNK_DATA* pRVA  = nullptr;
             DWORD IAT_Index         = 0;
             char *pDllName          = MAKE_PTR(char*, pImportTbl->Name, base);
-            HMODULE hMod            = m_TargetProcess.Modules.GetModuleAddress(pDllName);
+            std::string strDll      = pDllName;
+            std::wstring strBaseDll = L"";
+            HMODULE hMod            = m_TargetProcess.Modules.GetModuleAddress(pDllName, false, m_pTopImage->FileName.c_str());
+
+            strBaseDll.assign(strDll.begin(), strDll.end());
+            m_TargetProcess.Modules.ResolvePath(strBaseDll, ds_process::Default, m_pTopImage->FileName);
 
             // Load dependency if needed
             if(!hMod)
-            {
-                std::string strDll = pDllName;
-
+            {      
                 m_TargetProcess.Modules.ResolvePath(strDll, ds_process::EnsureFullPath);
 
                 // For win32 one exception handler is enough
-                // For amd64 each image must have it's own handler to properly resolve C++ exceptions
+                // For amd64 each image must have it's own handler to resolve C++ exceptions properly
             #ifdef _M_AMD64
                 eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS);
             #else
-                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS |NoExceptions);
+                eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS | NoExceptions);
             #endif
 
                 // Loading method
@@ -436,12 +440,12 @@ namespace ds_mmap
                 // WordSize * 8 - 1 = 0x80000000 (x86) or 0x8000000000000000 (x64)
                 if ((size_t)pRVA->u1.AddressOfData < (1LL << (WordSize * 8 - 1) ) && pAddressTable->Name[0])
                 {
-                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, pAddressTable->Name);
+                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, pAddressTable->Name, strBaseDll.c_str());
                 }
                 // import by ordinal
                 else 
                 {
-                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, (char*)((USHORT)pRVA->u1.AddressOfData & 0xFFFF));
+                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, (char*)((USHORT)pRVA->u1.AddressOfData & 0xFFFF), strBaseDll.c_str());
                 }
 
                 if(pFuncPtr == nullptr)
@@ -490,17 +494,20 @@ namespace ds_mmap
             IMAGE_THUNK_DATA* pRVA  = nullptr;
             DWORD IAT_Index         = 0;
             char *pDllName          = MAKE_PTR(char*, pDelayLoad->DllNameRVA, base);
-            HMODULE hMod            = m_TargetProcess.Modules.GetModuleAddress(pDllName);
+            std::string strDll      = pDllName;
+            std::wstring strBaseDll = L"";
+            HMODULE hMod            = m_TargetProcess.Modules.GetModuleAddress(pDllName, false, m_pTopImage->FileName.c_str());
+
+            strBaseDll.assign(strDll.begin(), strDll.end());
+            m_TargetProcess.Modules.ResolvePath(strBaseDll, ds_process::Default, m_pTopImage->FileName);
 
             // Load dependency if needed
             if(!hMod)
             {
-                std::string strDll = pDllName;
-
                 m_TargetProcess.Modules.ResolvePath(strDll, ds_process::EnsureFullPath);
 
                 // For win32 one exception handler is enough
-                // For amd64 each image must have it's own handler to properly resolve C++ exceptions
+                // For amd64 each image must have it's own handler to properly C++ exceptions properly
             #ifdef _M_AMD64
                 eLoadFlags newFlags = (eLoadFlags)(m_pTopImage->flags | NoDelayLoad | NoSxS);
             #else
@@ -529,12 +536,12 @@ namespace ds_mmap
                 // WordSize * 8 - 1 = 0x80000000 (x86) or 0x8000000000000000 (x64)
                 if ((size_t)pAddressTable < (1LL << (WordSize * 8 - 1) ) && pAddressTable->Name[0])
                 {
-                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, pAddressTable->Name);
+                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, pAddressTable->Name, strBaseDll.c_str());
                 }
                 // import by ordinal
                 else 
                 {
-                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, (char*)((USHORT)pAddressTable & 0xFFFF));
+                    pFuncPtr = m_TargetProcess.Modules.GetProcAddressEx(hMod, (char*)((USHORT)pAddressTable & 0xFFFF), strBaseDll.c_str());
                 }
 
                 if(pFuncPtr == nullptr)

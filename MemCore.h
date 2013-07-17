@@ -208,7 +208,7 @@ namespace ds_mmap
             DWORD TerminateWorkerThread();
     
             /*
-                Execute code in context of existing thread
+                Execute code in context of existing worker thread
     
                 IN:
                     pCode - code to execute
@@ -221,6 +221,22 @@ namespace ds_mmap
                     Error code
             */
             DWORD ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult );
+
+            /*
+                Execute code in context of existing thread
+    
+                IN:
+                    pCode - code to execute
+                    size - code size
+                    thread - handle of thread to execute code in
+    
+                OUT:
+                    callResult - last function result
+    
+                RETURN:
+                    Error code
+            */
+            DWORD ExecInAnyThread( PVOID pCode, size_t size, size_t& callResult, HANDLE hThread = NULL );
 
             /*
                 Find data by pattern
@@ -247,7 +263,15 @@ namespace ds_mmap
                     PEB address
             */
             PPEB GetPebBase();
-    
+
+            /*
+                Retrieve thread TEB address
+
+                RETURN:
+                    TEB address
+            */
+            PTEB GetTebBase(HANDLE hThread = NULL);
+
         private:
             /*
                 Create event to synchronize APC procedures
@@ -257,15 +281,25 @@ namespace ds_mmap
             */
             bool CreateAPCEvent(DWORD threadID);
 
-        private:
+            /*
+                Copy executable code to codecave for future execution
+
+                IN:
+                    pCode - code to copy
+                    size - code size
+
+                RETURN:
+                    Error code
+            */
+            DWORD PrepareCodecave( PVOID pCode, size_t size  );
+
+        public:
             HANDLE  m_hProcess;         // Process handle
             HANDLE  m_hMainThd;         // Process main thread handle
             HANDLE  m_hWorkThd;         // Worker thread handle
             HANDLE  m_hWaitEvent;       // APC sync event handle
-            DWORD   m_dwImageBase;      // Address of main module
             DWORD   m_pid;              // Process PID
             void*   m_pWorkerCode;      // Worker thread address space
-            void*   m_pW8DllBase;       // Windows 8 module tree root node
             void*   m_pCodecave;        // Codecave for code execution
             size_t  m_codeSize;         // Current codecave size
 
