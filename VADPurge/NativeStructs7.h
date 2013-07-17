@@ -132,7 +132,7 @@ struct _EX_PUSH_LOCK // Size=8
         unsigned __int64 MultipleShared: 1; // Size=8 Offset=0 BitOffset=3 BitCount=1
         unsigned __int64 Shared: 60; // Size=8 Offset=0 BitOffset=4 BitCount=60
     };
-    unsigned __int64 Value; // Size=8 Offset=0
+    //unsigned __int64 Value; // Size=8 Offset=0
     void * Ptr; // Size=8 Offset=0
 };
 
@@ -144,7 +144,7 @@ typedef struct _MMVAD_SHORT // Size=64
     unsigned __int64 StartingVpn; // Size=8 Offset=24
     unsigned __int64 EndingVpn; // Size=8 Offset=32
     union ___unnamed712 u; // Size=8 Offset=40
-    struct _EX_PUSH_LOCK PushLock; // Size=8 Offset=48
+    void * PushLock; // Size=8 Offset=48
     union ___unnamed713 u5; // Size=8 Offset=56
 } MMVAD_SHORT, *PMMVAD_SHORT;
 
@@ -156,7 +156,7 @@ typedef struct _MMVAD // Size=120
     unsigned __int64 StartingVpn; // Size=8 Offset=24
     unsigned __int64 EndingVpn; // Size=8 Offset=32
     union ___unnamed712 u; // Size=8 Offset=40
-    struct _EX_PUSH_LOCK PushLock; // Size=8 Offset=48
+    void * PushLock; // Size=8 Offset=48
     union ___unnamed713 u5; // Size=8 Offset=56
     union ___unnamed715 u2; // Size=4 Offset=64
     union
@@ -178,7 +178,7 @@ typedef struct _MMVAD_LONG // Size=144
     unsigned __int64 StartingVpn; // Size=8 Offset=24
     unsigned __int64 EndingVpn; // Size=8 Offset=32
     union ___unnamed712 u; // Size=8 Offset=40
-    struct _EX_PUSH_LOCK PushLock; // Size=8 Offset=48
+    void * PushLock; // Size=8 Offset=48
     union ___unnamed713 u5; // Size=8 Offset=56
     union ___unnamed715 u2; // Size=4 Offset=64
     struct _SUBSECTION * Subsection; // Size=8 Offset=72

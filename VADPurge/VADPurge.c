@@ -183,13 +183,26 @@ NTSTATUS VPPurgeRecord( IN PPURGE_DATA pData )
                 if(MiFindNodeOrParent(pTable, (ULONG_PTR)vpnStart, &pNode) == TableFoundNode)
                 {
                     PMMVAD_SHORT pVad  = (PMMVAD_SHORT)pNode;
-                    PPOOL_HEADER pPool = (PPOOL_HEADER)((PUCHAR)pNode - sizeof(POOL_HEADER));
+                    //PPOOL_HEADER pPool = (PPOOL_HEADER)((PUCHAR)pNode - sizeof(POOL_HEADER));
 
-                    DPRINT ("Found VAD node: tag = 0x%x, type = %d, prot = %d, isPrivate = %d. Unlinking...", 
-                        pPool->PoolTag, pVad->u.VadFlags.VadType, pVad->u.VadFlags.Protection, pVad->u.VadFlags.PrivateMemory);
+                    //DPRINT ("Found VAD node: tag = 0x%x, type = %d, prot = %d, isPrivate = %d. Unlinking...", 
+                        //pPool->PoolTag, pVad->u.VadFlags.VadType, pVad->u.VadFlags.Protection, pVad->u.VadFlags.PrivateMemory);
+                    DPRINT ("Found VAD node: \n");
+                    DPRINT ("   vad tag    = 0x%Ix\n", pPool->PoolTag);
+                    DPRINT ("   start      = 0x%Ix\n", pVad->StartingVpn);
+                    DPRINT ("   end        = 0x%Ix\n", pVad->EndingVpn);
+                    DPRINT ("   commit     = 0x%Ix\n", pVad->u1.VadFlags1.MemCommit);
+                    DPRINT ("   type       = 0x%Ix\n", pVad->u.VadFlags.VadType);
+                    DPRINT ("   protection = 0x%Ix\n", pVad->u.VadFlags.Protection);
+                    DPRINT ("   isPrivate  = 0x%Ix\n", pVad->u.VadFlags.PrivateMemory);
+
+                    DPRINT ("Unlinking...");
+
+                    //pVad->u.VadFlags.Protection  = 0;
+                    //pVad->u1.VadFlags1.MemCommit = 0;
 
                     // Unlink node from AVL tree
-                    MiRemoveNode(pNode, pTable);
+                    MiRemoveNode(pNode, pTable);          
 
                     //
                     // If the hint points at the removed VAD, change the hint.
@@ -203,7 +216,7 @@ NTSTATUS VPPurgeRecord( IN PPURGE_DATA pData )
                     }
 
                     // Free node memory
-                    ExFreePoolWithTag(pNode, pPool->PoolTag);
+                    //ExFreePoolWithTag(pNode, pPool->PoolTag);
 
                     DPRINT ("Successfull");
                 }

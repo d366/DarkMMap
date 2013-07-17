@@ -131,7 +131,7 @@ typedef struct _MMVAD_SHORT // Size=64
     struct _MM_AVL_NODE VadNode; // Size=24 Offset=0
     unsigned long StartingVpn; // Size=4 Offset=24
     unsigned long EndingVpn; // Size=4 Offset=28
-    struct _EX_PUSH_LOCK PushLock; // Size=8 Offset=32
+    void * PushLock; // Size=8 Offset=32
     union ___unnamed1784 u; // Size=4 Offset=40
     union ___unnamed1785 u1; // Size=4 Offset=44
     struct _MI_VAD_EVENT_BLOCK * EventList; // Size=8 Offset=48
