@@ -56,38 +56,64 @@ namespace ds_mmap
             ~CNtLdr(void);
 
             /*
+                Initialize some loader stuff
             */
             bool Init();
 
             /*
+                Add module to some loader structures 
+                (LdrpHashTable, LdrpModuleIndex (win8 only), InMemoryOrderModuleList (win7 only))
+
+                IN:
+                    hMod - module base address
+                    ImageSize - size of image
+                    DllBaseName - image name
+                    DllBasePath - image path
+                
+                RETURN:
+                    true on success
             */
             bool CreateNTReference(HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath);
 
             /*
+                Create module record in LdrpInvertedFunctionTable
+                Used to create fake SAFESEH entries
+
+                IN:
+                    ModuleBase - module base address
+                    ImageSize - image size
+
+                RETURN:
+                    true on success
             */
             bool InsertInvertedFunctionTable( void* ModuleBase, size_t ImageSize );
 
             /*
+                Get address of LdrpInvertedFunctionTable variable
             */
             void* LdrpInvertedFunctionTable() const { return m_LdrpInvertedFunctionTable; }
 
         private:
 
             /*
+                Find LdrpHashTable[] table with list heads
             */
             bool FindLdrpHashTable();
 
             /*
+                Find LdrpModuleIndex variable for win8
             */
             bool FindLdrpModuleIndexBase();
 
             /*
+                Get PEB->Ldr->InLoadOrderModuleList address
             */
             bool FindLdrpModuleBase();
 
             /*
+                Find RtlInsertInvertedFunctionTable and LdrpInvertedFunctionTable addresses
             */
-            bool FindPatterns();
+            bool FindInvertedFunctionTableStuff();
 
             /*
                 Find Loader heap base
@@ -95,39 +121,78 @@ namespace ds_mmap
             bool FindLdrHeap();
 
             /*
+                Initialize OS-specific module entry
+
+                IN:
+                    ModuleBase - module base address
+                    ImageSize - image size
+                    dllname - Image name
+                    dllpath - image path
+
+                OUT:
+                    outHash - image name hash
+
+                RETURN:
+                    Pointer to created entry
             */
             _LDR_DATA_TABLE_ENTRY_W8* InitW8Node( void* ModuleBase, size_t ImageSize, const std::wstring& dllname, const std::wstring& dllpath, ULONG& outHash );
             _LDR_DATA_TABLE_ENTRY_W7* InitW7Node( void* ModuleBase, size_t ImageSize, const std::wstring& dllname, const std::wstring& dllpath, ULONG& outHash );
 
             /*
+                Insert entry into win8 module tree
+
+                IN:
+                    pParentNode - parent node
+                    pNode - node to insert
+                    bLeft - insert as left child (if false - insert as right child)
             */
             void InsertTreeNode( void* pParentNode, void* pNode, bool bLeft = false );
 
             /*
+                Insert entry into LdrpHashTable[]
+
+                IN:
+                    pNodeLink - link of entry to be inserted
+                    hash - entry hash
             */
             void InsertHashNode( PLIST_ENTRY pNodeLink, ULONG hash );
 
             /*
+                Insert entry into InLoadOrderModuleList and InMemoryOrderModuleList
+
+                IN:
+                  pNodeMemoryOrderLink - InMemoryOrderModuleList link of entry to be inserted
+                  pNodeLoadOrderLink   - InLoadOrderModuleList link of entry to be inserted
             */
 			void InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink );
 
             /*
+                Insert entry into standard double linked list
+
+                IN:
+                    ListHead - List head pointer
+                    Entry - entry list link to be inserted
             */
             VOID InsertTailList( PLIST_ENTRY ListHead, PLIST_ENTRY Entry );
 
             /*
+                Determine if current OS is Win8 and higher
             */
-            CNtLdr& operator=(const CNtLdr& other);
+            bool IsWin8orHigher() const { return (m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2); }
+
+            /*
+            */
+            CNtLdr& operator =( const CNtLdr& other );
 
         private:
-            CMemCore&       m_memory;
-            OSVERSIONINFO   m_verinfo;
-            size_t          m_LdrpHashTable;
-            size_t          m_LdrpModuleIndexBase;
-            size_t          m_LdrpModuleBase;
-            size_t          m_LdrHeapBase;
-            void           *m_LdrpInvertedFunctionTable;
-            void           *m_RtlInsertInvertedFunctionTable;
+            CMemCore&       m_memory;                           // Process memory routines
+            OSVERSIONINFO   m_verinfo;                          // OS version info
+            size_t          m_LdrpHashTable;                    // LdrpHashTable address
+            size_t          m_LdrpModuleIndexBase;              // LdrpModuleIndex address
+            size_t          m_LdrpModuleBase;                   // PEB->Ldr->InLoadOrderModuleList address
+            size_t          m_LdrHeapBase;                      // Loader heap base address
+            void           *m_LdrpInvertedFunctionTable;        // LdrpInvertedFunctionTable address
+            void           *m_RtlInsertInvertedFunctionTable;   // RtlInsertInvertedFunctionTable address
         };
     }
 }

@@ -223,7 +223,7 @@ namespace ds_mmap
             DWORD ExecInWorkerThread( PVOID pCode, size_t size, size_t& callResult );
 
             /*
-                Execute code in context of existing thread
+                Execute code in context of arbitrary existing thread
     
                 IN:
                     pCode - code to execute

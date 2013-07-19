@@ -9,6 +9,7 @@ namespace ds_mmap
         #define EH_PURE_MAGIC_NUMBER1   0x01994000
         #define EH_EXCEPTION_NUMBER     ('msc' | 0xE0000000)
 
+        // For debug purposes only
         void*  CProcess::pImageBase = nullptr;
         size_t CProcess::imageSize  = 0;
 
@@ -193,8 +194,8 @@ namespace ds_mmap
             // 0x38 - EXCEPTION_RECORD.ExceptionInformation[3]
             //
             ea.mov(AsmJit::rax, qword_ptr(AsmJit::rcx));
-            //ea.cmp(AsmJit::qword_ptr(AsmJit::rax), EH_EXCEPTION_NUMBER);
-            //ea.jne(lExit);
+            ea.cmp(AsmJit::dword_ptr(AsmJit::rax), EH_EXCEPTION_NUMBER);
+            ea.jne(lExit);
             ea.mov(AsmJit::rdx, pTargetBase);
             ea.mov(AsmJit::r8, AsmJit::qword_ptr(AsmJit::rax, 0x30));
             ea.cmp(AsmJit::r8, AsmJit::rdx); 
@@ -256,12 +257,13 @@ namespace ds_mmap
                 return GetLastError();
             }
 
-             /*if(Core.Write(m_pVEHCode, SizeOfProc(pFunc), pFunc) != ERROR_SUCCESS)
-             {
-                 Core.Free(m_pVEHCode);
-                 m_pVEHCode = nullptr;
-                 return GetLastError();
-             }*/
+            // Old handler
+            /*if(Core.Write(m_pVEHCode, SizeOfProc(pFunc), pFunc) != ERROR_SUCCESS)
+            {
+                Core.Free(m_pVEHCode);
+                m_pVEHCode = nullptr;
+                return GetLastError();
+            }*/
 
         #endif
 
@@ -504,18 +506,18 @@ namespace ds_mmap
             if(ExceptionInfo->ExceptionRecord->ExceptionCode == EH_EXCEPTION_NUMBER)
             {
                 // Check exception site image boundaries
-                if(ExceptionInfo->ExceptionRecord->ExceptionInformation[2] >= (ULONG_PTR)pImageBase
-                    && ExceptionInfo->ExceptionRecord->ExceptionInformation[2] <= ((ULONG_PTR)pImageBase + imageSize))
+                if(ExceptionInfo->ExceptionRecord->ExceptionInformation[2] >= (ULONG_PTR)CProcess::pImageBase
+                    && ExceptionInfo->ExceptionRecord->ExceptionInformation[2] <= ((ULONG_PTR)CProcess::pImageBase + CProcess::imageSize))
                 {
                     // Assume that's our exception because ImageBase = 0 and not suitable magic number
                     if(ExceptionInfo->ExceptionRecord->ExceptionInformation[0] == EH_PURE_MAGIC_NUMBER1 
                         && ExceptionInfo->ExceptionRecord->ExceptionInformation[3] == 0)
                     {
-                        // magic number (seems it , this one is for vc110)
+                        // magic number (seems it, this one is for vc110)
                         ExceptionInfo->ExceptionRecord->ExceptionInformation[0] = (ULONG_PTR)EH_MAGIC_NUMBER1;
 
                         // fix exception image base
-                        ExceptionInfo->ExceptionRecord->ExceptionInformation[3] = (ULONG_PTR)pImageBase;
+                        ExceptionInfo->ExceptionRecord->ExceptionInformation[3] = (ULONG_PTR)CProcess::pImageBase;
                     }
                 }
             }

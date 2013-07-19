@@ -137,7 +137,7 @@ namespace ds_mmap
             CNtLdr& NtLoader() { return m_native; }
 
         private:
-            CMemModules& operator = (const CMemModules&) {}
+            CMemModules& operator = (const CMemModules&) { }
 
             /*
                 Initialize Api schema from current process table
@@ -167,6 +167,7 @@ namespace ds_mmap
             // Activation context stack
             std::stack<HANDLE> m_ActxStack;
 
+            // Native loader routines
             CNtLdr m_native;
         };
     }

@@ -20,6 +20,9 @@ namespace ds_mmap
         {
         }
 
+        /*
+            Initialize some loader stuff
+        */
         bool CNtLdr::Init()
         {
             m_verinfo.dwOSVersionInfoSize = sizeof(m_verinfo);
@@ -32,16 +35,29 @@ namespace ds_mmap
             FindLdrpHashTable();
             FindLdrpModuleIndexBase();
             FindLdrpModuleBase();
-            FindPatterns();
+            FindInvertedFunctionTableStuff();
             FindLdrHeap();
 
             return true;
         }
 
+        /*
+            Add module to some loader structures 
+            (LdrpHashTable, LdrpModuleIndex (win8 only), InMemoryOrderModuleList (win7 only))
+
+            IN:
+                hMod - module base address
+                ImageSize - size of image
+                DllBaseName - image name
+                DllBasePath - image path
+                
+            RETURN:
+                true on success
+        */
         bool CNtLdr::CreateNTReference( HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath )
         {
             // Win 8 and higher
-            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
+            if(IsWin8orHigher())
             {
                 ULONG hash = 0;
                 _LDR_DATA_TABLE_ENTRY_W8 *pEntry = InitW8Node((void*)hMod, ImageSize, DllBaseName, DllBasePath, hash);
@@ -121,6 +137,15 @@ namespace ds_mmap
 
 
         /*
+            Create module record in LdrpInvertedFunctionTable
+            Used to create fake SAFESEH entries
+
+            IN:
+                ModuleBase - module base address
+                ImageSize - image size
+
+            RETURN:
+                true on success
         */
         bool CNtLdr::InsertInvertedFunctionTable( void* ModuleBase, size_t ImageSize )
         { 
@@ -136,7 +161,7 @@ namespace ds_mmap
 
             ah.GenPrologue();
 
-            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
+            if(IsWin8orHigher())
             {
                 ah.GenCall(m_RtlInsertInvertedFunctionTable, { (size_t)ModuleBase, ImageSize });
                 Entries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)&table + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE8, Entries));
@@ -181,6 +206,19 @@ namespace ds_mmap
         }
 
         /*
+            Initialize OS-specific module entry
+
+            IN:
+                ModuleBase - module base address
+                ImageSize - image size
+                dllname - Image name
+                dllpath - image path
+
+            OUT:
+                outHash - image name hash
+
+            RETURN:
+                Pointer to created entry
         */
         _LDR_DATA_TABLE_ENTRY_W8* CNtLdr::InitW8Node( void* ModuleBase, size_t ImageSize, const std::wstring& dllname, const std::wstring& dllpath, ULONG& outHash )
         {
@@ -282,6 +320,19 @@ namespace ds_mmap
         }
 
         /*
+            Initialize OS-specific module entry
+
+            IN:
+                ModuleBase - module base address
+                ImageSize - image size
+                dllname - Image name
+                dllpath - image path
+
+            OUT:
+                outHash - image name hash
+
+            RETURN:
+                Pointer to created entry
         */
         _LDR_DATA_TABLE_ENTRY_W7* CNtLdr::InitW7Node( void* ModuleBase, size_t ImageSize, const std::wstring& dllname, const std::wstring& dllpath, ULONG& outHash )
         {
@@ -351,6 +402,12 @@ namespace ds_mmap
         }
 
         /*
+            Insert entry into win8 module tree
+
+            IN:
+                pParentNode - parent node
+                pNode - node to insert
+                bLeft - insert as left child (if false - insert as right child)
         */
         void CNtLdr::InsertTreeNode( void* pParentNode, void* pNode, bool bLeft /*= false*/ )
         {
@@ -371,6 +428,11 @@ namespace ds_mmap
         }
 
         /*
+            Insert entry into InLoadOrderModuleList and InMemoryOrderModuleList
+
+            IN:
+                pNodeMemoryOrderLink - InMemoryOrderModuleList link of entry to be inserted
+                pNodeLoadOrderLink   - InLoadOrderModuleList link of entry to be inserted
         */
 		void CNtLdr::InsertMemModuleNode( PLIST_ENTRY pNodeMemoryOrderLink, PLIST_ENTRY pNodeLoadOrderLink )
 		{
@@ -393,6 +455,11 @@ namespace ds_mmap
         }
 
         /*
+            Insert entry into LdrpHashTable[]
+
+            IN:
+                pNodeLink - link of entry to be inserted
+                hash - entry hash
         */
         void CNtLdr::InsertHashNode( PLIST_ENTRY pNodeLink, ULONG hash )
         {
@@ -406,6 +473,11 @@ namespace ds_mmap
         }
 
         /*
+            Insert entry into standard double linked list
+
+            IN:
+                ListHead - List head pointer
+                Entry - entry list link to be inserted
         */
         VOID CNtLdr::InsertTailList(PLIST_ENTRY ListHead, PLIST_ENTRY Entry)
         {
@@ -434,7 +506,7 @@ namespace ds_mmap
             ULONG NtdllHashIndex  = 0;
 
             // Win 8 and higher
-            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
+            if(IsWin8orHigher())
             {
                 // get ntdll entry
                 _LDR_DATA_TABLE_ENTRY_W8 *Ntdll = CONTAINING_RECORD (Ldr->InInitializationOrderModuleList.Flink, _LDR_DATA_TABLE_ENTRY_W8, InInitializationOrderLinks);
@@ -506,6 +578,7 @@ namespace ds_mmap
         }
 
         /*
+            Find LdrpModuleIndex variable for win8
         */
         bool CNtLdr::FindLdrpModuleIndexBase()
         {
@@ -534,6 +607,7 @@ namespace ds_mmap
         }
 
         /*
+            Get PEB->Ldr->InLoadOrderModuleList address
         */
         bool CNtLdr::FindLdrpModuleBase()
         {
@@ -546,9 +620,9 @@ namespace ds_mmap
         }
 
         /*
-            Find data patterns
+            Find RtlInsertInvertedFunctionTable and LdrpInvertedFunctionTable addresses
         */
-        bool CNtLdr::FindPatterns()
+        bool CNtLdr::FindInvertedFunctionTableStuff()
         {
             std::vector<size_t> foundData;
             ds_pe::CPEManger ntdll;
@@ -570,7 +644,7 @@ namespace ds_mmap
             }
 
             // Win 8 and later
-            if(m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2)
+            if(IsWin8orHigher())
             {
             #ifdef _M_AMD64
             #else

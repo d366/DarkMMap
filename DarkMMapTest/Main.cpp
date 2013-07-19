@@ -4,10 +4,7 @@
 #include <metahost.h>
 #include <atlbase.h>
 
-#include <muiload.h>
-
 #pragma comment(lib, "mscoree.lib")
-#pragma comment(lib, "muiload.lib")
 
 #define TARGET_RUNTIME L'4'
 
@@ -85,9 +82,9 @@ int _tmain(int argc, _TCHAR* argv[])
     //ds_mmap::CDarkMMap mapperRemote(8072);
 
 #ifdef _M_AMD64
-    //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll64.dll";
+    wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll64.dll";
     wchar_t* path90 = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll6490.dll";
-    wchar_t* path = L"C:\\windows\\system32\\calc.exe";
+    //wchar_t* path = L"C:\\windows\\system32\\calc.exe";
 #else
     wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll.dll";
     wchar_t *path90 = L"..\\DummyDll90.dll";

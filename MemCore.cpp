@@ -337,7 +337,7 @@ namespace ds_mmap
             RETURN:
                 Error code
 
-            Thread code layout:
+            Thread code layout (x86/x64):
             -------------------------------------------------------------------------
             | Return value |  Event handle  |  Free Space   | Thread execution code |
             ------------------------------------------------------------------------
@@ -410,11 +410,14 @@ namespace ds_mmap
         {
             // Allocate new codecave
             if(!m_pCodecave)
-            {
-                if(Allocate((size > 0x1000) ? size : 0x1000, m_pCodecave) != ERROR_SUCCESS)
-                    return GetLastError();
+            { 
+                m_codeSize = (size > 0x1000) ? size : 0x1000;
 
-                m_codeSize = size;
+                if(Allocate(m_codeSize, m_pCodecave) != ERROR_SUCCESS)
+                {
+                    m_codeSize = 0;
+                    return GetLastError();
+                }
             }
 
             // Reallocate for new size
@@ -437,6 +440,10 @@ namespace ds_mmap
 
 
         /*
+            Terminate existing worker thread
+    
+            RETURN:
+                Error code
         */
         DWORD CMemCore::TerminateWorkerThread()
         {
@@ -505,7 +512,7 @@ namespace ds_mmap
         }
 
         /*
-            Execute code in context of existing thread
+            Execute code in context of arbitrary existing thread
     
             IN:
                 pCode - code to execute
@@ -531,6 +538,9 @@ namespace ds_mmap
             if(dwResult != ERROR_SUCCESS)
                 return dwResult;
 
+            if(m_hWaitEvent)
+                ResetEvent(m_hWaitEvent);
+
             SuspendThread(hThread);
 
             ctx.ContextFlags = CONTEXT_FULL;
@@ -540,15 +550,67 @@ namespace ds_mmap
                 AsmJit::Assembler a;
                 AsmJitHelper ah(a);
 
-                //a.pushad();
-                //ah.GenCall(m_pCodecave, { (size_t)m_pWorkerCode });
-                //a.popad();
-                //a.push(ctx.Eip);
-                a.ret();
+            #ifdef _M_AMD64
+                //
+                // Preserve thread context
+                // I don't care about FPU, XMM and anything else
+                // Why they removed pushad...
+                //
+                a.sub(AsmJit::rsp, 16 * WordSize);  // Stack must be aligned on 16 bytes 
 
+                a.mov(AsmJit::Mem(AsmJit::rsp, 0  * WordSize), AsmJit::rax);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 1  * WordSize), AsmJit::rbx);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 2  * WordSize), AsmJit::rcx);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 3  * WordSize), AsmJit::rdx);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 4  * WordSize), AsmJit::rsi);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 5  * WordSize), AsmJit::rdi);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 6  * WordSize), AsmJit::r8 );
+                a.mov(AsmJit::Mem(AsmJit::rsp, 7  * WordSize), AsmJit::r9 );
+                a.mov(AsmJit::Mem(AsmJit::rsp, 8  * WordSize), AsmJit::r10);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 9  * WordSize), AsmJit::r11);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 10 * WordSize), AsmJit::r12);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 11 * WordSize), AsmJit::r13);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 12 * WordSize), AsmJit::r14);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 13 * WordSize), AsmJit::r15);
+                a.mov(AsmJit::Mem(AsmJit::rsp, 14 * WordSize), AsmJit::rbp);
+
+                ah.GenCall(m_pCodecave, { (size_t)m_pWorkerCode });
+
+                a.mov(AsmJit::rax, AsmJit::Mem(AsmJit::rsp, 0  * WordSize));
+                a.mov(AsmJit::rbx, AsmJit::Mem(AsmJit::rsp, 1  * WordSize));
+                a.mov(AsmJit::rcx, AsmJit::Mem(AsmJit::rsp, 2  * WordSize));
+                a.mov(AsmJit::rdx, AsmJit::Mem(AsmJit::rsp, 3  * WordSize));
+                a.mov(AsmJit::rsi, AsmJit::Mem(AsmJit::rsp, 4  * WordSize));
+                a.mov(AsmJit::rdi, AsmJit::Mem(AsmJit::rsp, 5  * WordSize));
+                a.mov(AsmJit::r8,  AsmJit::Mem(AsmJit::rsp, 6  * WordSize));
+                a.mov(AsmJit::r9,  AsmJit::Mem(AsmJit::rsp, 7  * WordSize));
+                a.mov(AsmJit::r10, AsmJit::Mem(AsmJit::rsp, 8  * WordSize));
+                a.mov(AsmJit::r11, AsmJit::Mem(AsmJit::rsp, 9  * WordSize));
+                a.mov(AsmJit::r12, AsmJit::Mem(AsmJit::rsp, 10 * WordSize));
+                a.mov(AsmJit::r13, AsmJit::Mem(AsmJit::rsp, 11 * WordSize));
+                a.mov(AsmJit::r14, AsmJit::Mem(AsmJit::rsp, 12 * WordSize));
+                a.mov(AsmJit::r15, AsmJit::Mem(AsmJit::rsp, 13 * WordSize));
+                a.mov(AsmJit::rbp, AsmJit::Mem(AsmJit::rsp, 14 * WordSize));
+
+                a.add(AsmJit::rsp, 16 * WordSize);
+
+                a.jmp(ctx.Rip);
+            #else
+                a.pushad();
+                ah.GenCall(m_pCodecave, { (size_t)m_pWorkerCode });
+                a.popad();
+                a.push(ctx.Eip);
+                a.ret();
+            #endif
+                
                 if(Write((uint8_t*)m_pCodecave + size, a.getCodeSize(), a.make()) == ERROR_SUCCESS)
                 {
-                    //ctx.Eip = (size_t)m_pCodecave + size;
+                #ifdef _M_AMD64
+                    ctx.Rip = (size_t)m_pCodecave + size;
+                #else
+                    ctx.Eip = (size_t)m_pCodecave + size;
+                #endif
+
                     SetThreadContext(hThread, &ctx);
                 }
                 else

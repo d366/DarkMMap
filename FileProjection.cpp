@@ -109,7 +109,7 @@ namespace ds_mmap
         Get mapping base
 
         RETURN:
-        Address of file mapping
+            Address of file mapping
     */
     void* CFileProjection::base() const
     {
