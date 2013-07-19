@@ -90,19 +90,6 @@ namespace ds_mmap
             return 0;
         }
 
-        //////////////////////////////////////////////////////////////////////////
-        AsmJit::Assembler a;
-        AsmJitHelper ah(a);
-        size_t result = 0;
-
-        ah.GenPrologue();
-        ah.GenCall(m_TargetProcess.Modules.GetProcAddressEx(m_TargetProcess.Modules.GetModuleAddress(L"user32.dll"), "MessageBoxA"), { 0, 0, 0, 0 });
-        ah.SaveRetValAndSignalEvent();
-        ah.GenEpilogue();
-
-        m_TargetProcess.Core.ExecInAnyThread(a.make(), a.getCodeSize(), result, m_TargetProcess.Core.m_hWorkThd);
-        //////////////////////////////////////////////////////////////////////////
-
         // Already loaded
         if(HMODULE hMod = m_TargetProcess.Modules.GetModuleAddress(m_pTopImage->FileName.c_str()))
         {

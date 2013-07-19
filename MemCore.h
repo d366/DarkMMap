@@ -293,7 +293,7 @@ namespace ds_mmap
             */
             DWORD PrepareCodecave( PVOID pCode, size_t size  );
 
-        public:
+        private:
             HANDLE  m_hProcess;         // Process handle
             HANDLE  m_hMainThd;         // Process main thread handle
             HANDLE  m_hWorkThd;         // Worker thread handle
