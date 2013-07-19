@@ -368,7 +368,7 @@ namespace ds_mmap
                 ah.GenPrologue();
 
                 a.bind(l_loop);
-                ah.GenCall(&SleepEx, {10, TRUE});
+                ah.GenCall(&SleepEx, {5, TRUE});
                 a.jmp(l_loop);
 
                 ah.ExitThreadWithStatus();
@@ -500,10 +500,11 @@ namespace ds_mmap
                 ResetEvent(m_hWaitEvent);
 
             // Execute code in thread context
-            QueueUserAPC((PAPCFUNC)m_pCodecave, m_hWorkThd, (ULONG_PTR)m_pWorkerCode);
-
-            dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
-            callResult = Read<size_t>((size_t)m_pWorkerCode);
+            if(QueueUserAPC((PAPCFUNC)m_pCodecave, m_hWorkThd, (ULONG_PTR)m_pWorkerCode))
+            {
+                dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
+                callResult = Read<size_t>((size_t)m_pWorkerCode);
+            }
 
             // Ensure APC function fully returns
             Sleep(1);
@@ -615,7 +616,8 @@ namespace ds_mmap
                     ctx.Eip = (size_t)m_pCodecave + size;
                 #endif
 
-                    SetThreadContext(hThread, &ctx);
+                    if(!SetThreadContext(hThread, &ctx))
+                        dwResult = GetLastError();
                 }
                 else
                     dwResult = GetLastError();
