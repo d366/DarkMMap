@@ -195,14 +195,12 @@ namespace ds_mmap
         */
         DWORD GetSectionProt(DWORD characteristics);
 
-        
-        
     private:
         vecImageCtx             m_Images;           // Mapped images
         ImageContext           *m_pTopImage;        // Image context information 
         ds_process::CProcess    m_TargetProcess;    // Target process manager
         int                     m_tlsIndex;         // Current static TLS index
-        void                   *m_pAContext;          // SxS activation context memory address
+        void                   *m_pAContext;        // SxS activation context memory address
     };
 }
 

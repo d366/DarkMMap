@@ -556,7 +556,8 @@ namespace ds_mmap
                 // I don't care about FPU, XMM and anything else
                 // Why they removed pushad...
                 //
-                a.sub(AsmJit::rsp, 16 * WordSize);  // Stack must be aligned on 16 bytes 
+                a.sub(AsmJit::rsp, 15 * WordSize);  // Stack must be aligned on 16 bytes 
+                a.pushfq();                         //
 
                 a.mov(AsmJit::Mem(AsmJit::rsp, 0  * WordSize), AsmJit::rax);
                 a.mov(AsmJit::Mem(AsmJit::rsp, 1  * WordSize), AsmJit::rbx);
@@ -592,12 +593,15 @@ namespace ds_mmap
                 a.mov(AsmJit::r15, AsmJit::Mem(AsmJit::rsp, 13 * WordSize));
                 a.mov(AsmJit::rbp, AsmJit::Mem(AsmJit::rsp, 14 * WordSize));
 
-                a.add(AsmJit::rsp, 16 * WordSize);
+                a.popfq();
+                a.add(AsmJit::rsp, 15 * WordSize);
 
                 a.jmp(ctx.Rip);
             #else
                 a.pushad();
+                a.pushfd();
                 ah.GenCall(m_pCodecave, { (size_t)m_pWorkerCode });
+                a.popfd();
                 a.popad();
                 a.push(ctx.Eip);
                 a.ret();
