@@ -25,8 +25,20 @@ namespace ds_mmap
         a.ret ();
     }
 
-    void CAsmHelper64::GenCall( void* pFN, std::initializer_list<GenVar> args )
+    void CAsmHelper64::GenCall( void* pFN, std::initializer_list<GenVar> args, eCalligConvention /*cc = CC_stdcall*/ )
     {
+        //
+        // reserve stack size (0x28 - minimal size for 4 registers and return address)
+        // after call, stack must be aligned on 16 bytes boundary
+        //
+        size_t rsp_dif = (args.size() > 4) ? 0x28 + (args.size() - 4) * WordSize: 0x28;
+
+        // align on (16 bytes - sizeof(return address))
+        if((rsp_dif + WordSize) % 16 )
+            rsp_dif = ((rsp_dif >> 3) + 1) << 3 ;
+
+        a.sub(AsmJit::rsp, rsp_dif);
+
         // Set args
         for(size_t i = 0; i < args.size(); i++)
         {
@@ -34,25 +46,9 @@ namespace ds_mmap
             PushArg(arg, i);
         }
 
-        // reserve stack size (0x28 - minimal size for 4 registers and return address)
-        // after call stack must be aligned in 0x10 boundary
-        size_t rsp_dif = (args.size() > 4) ? 0x28 + (args.size() - 4)*WordSize: 0x28;
-
-        // reserve stack and call
-        a.sub   (AsmJit::rsp, rsp_dif);
         a.mov   (AsmJit::r13, (size_t)pFN);
         a.call  (AsmJit::r13);
         a.add   (AsmJit::rsp, rsp_dif);
-    }
-
-    void CAsmHelper64::GenCallCdecl( void* pFN, std::initializer_list<GenVar> args )
-    {
-        return GenCall(pFN, args);
-    }
-
-    void CAsmHelper64::GenCallThiscall( void* pFN, std::initializer_list<GenVar> args )
-    {
-        return GenCall(pFN, args);
     }
 
     void CAsmHelper64::ExitThreadWithStatus()
@@ -78,6 +74,14 @@ namespace ds_mmap
         if(arg.getType() == GenVar::imm)
         {
             PushArgp(arg.getImm(), index);
+        }
+        else if(arg.getType() == GenVar::imm_double)
+        {
+            PushArgp(arg.getImm_double(), index, true);  
+        }
+        else if(arg.getType() == GenVar::imm_float)
+        {
+            PushArgp(arg.getImm_float(), index, true);  
         }
         else if(arg.getType() == GenVar::mem_ptr)
         {

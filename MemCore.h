@@ -4,10 +4,12 @@
 #include "stdafx.h"
 #include "LDasm.h"
 #include "AsmHelperBase.h"
-#include "AsmHelper32.h"
+#ifdef _M_AMD64
 #include "AsmHelper64.h"
+#else
+#include "AsmHelper32.h"
+#endif
 #include "NtStructures.h"
-
 #include <vector>
 #include <memory>
 
@@ -30,6 +32,7 @@ namespace ds_mmap
     
                 IN:
                     size - amount to allocate in bytes
+                    pAddr - desired address of allocated memory
     
                 OUT:
                     pAddr - address of allocated memory
@@ -174,7 +177,7 @@ namespace ds_mmap
                 RETURN:
                     Error code
             */
-            DWORD RemoteCall( PVOID pCode, size_t size, size_t& callResult, PVOID pArg = NULL);
+            DWORD RemoteCall( PVOID pCode, size_t size, size_t& callResult, PVOID pArg = NULL );
     
             /*
                 Perform direct function call in remote process by its address
@@ -192,12 +195,15 @@ namespace ds_mmap
             DWORD RemoteCallDirect( PVOID pProc, PVOID pArg, size_t& callResult, bool waitForReturn = true );
     
             /*
-                Create thread in remote process to execute code later
+                Create environment for future RPC
+
+                IN:
+                     noThread - create only codecave and sync event, without thread
     
                 RETURN:
                     Error code
             */
-            DWORD CreateWorkerThread();
+            DWORD CreateRPCEnvironment(bool noThread = false);
     
             /*
                 Terminate existing worker thread
@@ -273,6 +279,15 @@ namespace ds_mmap
             PTEB GetTebBase(HANDLE hThread = NULL);
 
         private:
+
+            /*
+                Create thread for RPC
+
+                RETURN:
+                    Thread ID
+            */
+            DWORD CreateWorkerThread();
+
             /*
                 Create event to synchronize APC procedures
     

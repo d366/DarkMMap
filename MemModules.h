@@ -72,9 +72,10 @@ namespace ds_mmap
                 Get specific module address
 
                 IN:
-                    proc - process ID
                     modname - module name
+                    skipManualModules - don't search for manually mapped modules
                     baseModule - name of base import dll (API Schema resolve only)
+
                 OUT:
                     void
 
@@ -91,6 +92,7 @@ namespace ds_mmap
                 IN:
                     hMod - module base
                     func - function name or ordinal
+                    baseModule - name of base import dll (API Schema resolve only)
 
                 OUT:
                     void
@@ -117,10 +119,6 @@ namespace ds_mmap
                     name - module name
             */
             void RemoveManualModule(const std::wstring& name);
-
-            /*
-            */
-            bool CreateNTReference(HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath );
 
             /*
                 Set active activation context

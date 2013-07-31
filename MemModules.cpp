@@ -102,7 +102,7 @@ namespace ds_mmap
             if(!m_memory.m_hProcess)
                 return ERROR_INVALID_HANDLE;
 
-            //Search for dll in process
+            // Search for dll in process
             if((hDll = GetModuleAddress(dllName.c_str(), true)) != 0)
             {
                 size_t result = 0;
@@ -388,7 +388,6 @@ namespace ds_mmap
             Get specific module address
 
             IN:
-                proc - process ID
                 modname - module name
                 name of base import dll (API Schema resolve only)
 
@@ -412,7 +411,6 @@ namespace ds_mmap
             Get specific module address
 
             IN:
-                proc - process ID
                 modname - module name
                 name of base import dll (API Schema resolve only)
 
@@ -649,11 +647,6 @@ namespace ds_mmap
             CloseHandle(snapshot);
 
             return path;
-        }
-
-        bool CMemModules::CreateNTReference( HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath )
-        {
-            return m_native.CreateNTReference(hMod, ImageSize, DllBaseName, DllBasePath);
         }
 
         /*

@@ -298,13 +298,13 @@ namespace ds_mmap
             ah.GenPrologue();
 
             // RemoveVectoredExceptionHandler(pHandler);
-            ah.GenCall(&RemoveVectoredExceptionHandler, {(size_t)m_hVEH});
+            ah.GenCall(&RemoveVectoredExceptionHandler, { (size_t)m_hVEH });
 
             ah.SaveRetValAndSignalEvent();
             ah.GenEpilogue();
 
             Core.ExecInWorkerThread(a.make(), a.getCodeSize(), result);
-            //Core.Free(m_pVEHCode);
+            Core.Free(m_pVEHCode);
 
             return GetLastError();
         }
@@ -625,9 +625,9 @@ namespace ds_mmap
             verMinor = *(DWORD*)((size_t)peb + 0xA8);
 
             if(verMajor >= 6 && verMinor >= 2)
-                pEntries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)pTable + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE8, Entries));
+                pEntries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)(GET_FIELD_PTR((PRTL_INVERTED_FUNCTION_TABLE8)pTable, Entries));
             else
-                pEntries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)((size_t)pTable + FIELD_OFFSET(RTL_INVERTED_FUNCTION_TABLE7, Entries));
+                pEntries = (PRTL_INVERTED_FUNCTION_TABLE_ENTRY)(GET_FIELD_PTR(pTable, Entries));
 
             //
             // Add each handler to LdrpInvertedFunctionTable
@@ -642,7 +642,7 @@ namespace ds_mmap
                     {
                         newHandler = false;
 
-                        // Win8 always has ntdll.dll as first image, so we can safely skip its handlers
+                        // Win8 always has ntdll.dll as first image, so we can safely skip its handlers.
                         // Also ntdll.dll ExceptionDirectory isn't Encoded via RtlEncodeSystemPointer (it's plain address)
                         if(verMajor >= 6 && verMinor >= 2 && imageIndex == 0)
                             break;

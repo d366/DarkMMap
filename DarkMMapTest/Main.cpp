@@ -79,18 +79,18 @@ int _tmain(int argc, _TCHAR* argv[])
     HMODULE mod = NULL;
     ds_mmap::CDarkMMap mapper(GetCurrentProcessId());
     //ds_mmap::CDarkMMap mapper90(GetCurrentProcessId());
-    //ds_mmap::CDarkMMap mapperRemote(8072);
+    //ds_mmap::CDarkMMap mapperRemote(6356);
 
 #ifdef _M_AMD64
     wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll64.dll";
-    wchar_t* path90 = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll6490.dll";
+    //wchar_t* path90 = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll6490.dll";
     //wchar_t* path = L"C:\\windows\\system32\\calc.exe";
 #else
     wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\DummyDll.dll";
-    wchar_t *path90 = L"..\\DummyDll90.dll";
+    //wchar_t *path90 = L"..\\DummyDll90.dll";
     //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\ImgSearch\\Release\\ImgSearch.exe";
     //wchar_t* path = L"C:\\Users\\Ton\\Documents\\Visual Studio 2012\\Projects\\DarkMMap\\ClrDummy.dll";
-    //wchar_t* path = L"C:\\windows\\system32\\calc.exe";
+    //wchar_t* path = L"C:\\windows\\system32\\cmd.exe";
 #endif
 
     if(argc > 1)
@@ -99,19 +99,27 @@ int _tmain(int argc, _TCHAR* argv[])
     //InitRuntime();
 
     ds_mmap::eLoadFlags flags = (ds_mmap::eLoadFlags)(  ds_mmap::CreateLdrRef  |
+                                                        ds_mmap::ManualImports |
                                                       //ds_mmap::UnlinkVAD     | 
                                                       //ds_mmap::NoExceptions  |
-                                                        ds_mmap::ManualImports |
-                                                        ds_mmap::RebaseProcess |
-                                                        ds_mmap::NoDelayLoad);
+                                                      //ds_mmap::NoTLS         |
+                                                        ds_mmap::RebaseProcess |                             
+                                                        ds_mmap::NoDelayLoad );
+
+    /*mod = LoadLibrary(path);
+    FreeLibrary(mod);*/
 
     if((mod = mapper.MapDll(path, flags)) != 0 /*&& mapper.MapDll(path90, flags) != 0*/)
     {
-        mod = GetModuleHandle(L"DummyDll.dll");
+        //DebugBreak();
+        /*mod = GetModuleHandle(L"DummyDll.dll");
         int (*proc)(char*) = (int (*)(char*))GetProcAddress(mod, "fnDummyDll");
 
-        //if(proc)
-            //proc("Test");
+        if(proc)
+        {
+            size_t result = 0;
+            mapper.CallFunction(proc, { (size_t)"TestString" }, result, ds_mmap::CC_cdecl);
+        }*/
 
         mapper.UnmapAllModules();
     }

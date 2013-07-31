@@ -256,13 +256,15 @@ namespace ds_mmap
             DWORD dwResult    = ERROR_SUCCESS;
             HANDLE hThread    = NULL;
 
-            //Create execution thread
+            // Create execution thread
             callResult  = 0xFFFFFFF0;
             hThread     = CreateRemoteThread(m_hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)pProc, pArg, 0, NULL);
 
             if (hThread && waitForReturn)
             {
                 WaitForSingleObject(hThread, INFINITE);
+
+                // TODO: Need to find something better for 64-bit results
                 GetExitCodeThread(hThread, (LPDWORD)&callResult);
             }
 
@@ -270,105 +272,34 @@ namespace ds_mmap
         }
 
         /*
-            Create event to synchronize APC procedures
+            Create thread for RPC
 
             RETURN:
-                Error code
-        */
-        bool CMemCore::CreateAPCEvent( DWORD threadID )
-        {
-            AsmJit::Assembler a;
-            AsmJitHelper ah(a);
-
-            size_t dwResult        = ERROR_SUCCESS;
-            void *pCodecave        = NULL;
-            wchar_t pEventName[64] = {0};
-            size_t len;
-
-            // Generate event name
-            swprintf_s(pEventName, ARRAYSIZE(pEventName), L"_MMapEvent_0x%x", threadID);
-            len = (wcslen(pEventName) + 1) * sizeof(wchar_t);
-
-            Allocate(a.getCodeSize() + len, pCodecave);
-
-            ah.GenPrologue();
-            ah.GenCall(&CreateEventW, {NULL, TRUE, FALSE, (size_t)pCodecave});
-
-            // Save event handle
-        #ifdef _M_AMD64
-            a.mov(AsmJit::ndx, AsmJit::qword_ptr(AsmJit::nsp, WordSize));
-        #else
-            a.mov(AsmJit::ndx, dword_ptr(AsmJit::nbp, 2*WordSize));
-        #endif   
-
-            a.mov(sysint_ptr(AsmJit::ndx, WordSize), AsmJit::nax);
-
-            ah.ExitThreadWithStatus();
-            ah.GenEpilogue();
-
-            if(Write((uint8_t*)pCodecave + len, a.getCodeSize(), a.make()) != ERROR_SUCCESS ||
-                Write((uint8_t*)pCodecave, len, pEventName) != ERROR_SUCCESS)
-            {
-                if(pCodecave)
-                    Free(pCodecave);
-
-                return false;
-            }
-
-            RemoteCallDirect((uint8_t*)pCodecave + len, m_pWorkerCode, dwResult);
-
-            m_hWaitEvent = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, pEventName);
-
-            if(pCodecave)
-                Free(pCodecave);
-
-            if(dwResult == NULL || m_hWaitEvent == NULL)
-            {
-                SetLastError(ERROR_OBJECT_NOT_FOUND);
-                return false;
-            }
-
-            return true;
-        }
-
-        /*
-            Create thread in remote process to execute code later
-
-            RETURN:
-                Error code
-
-            Thread code layout (x86/x64):
-            -------------------------------------------------------------------------
-            | Return value |  Event handle  |  Free Space   | Thread execution code |
-            ------------------------------------------------------------------------
-            |   4/8 bytes  |    4/8 bytes   |   8/16 bytes  |                       |
-            -------------------------------------------------------------------------
+                Thread ID
         */
         DWORD CMemCore::CreateWorkerThread()
         {
             AsmJit::Assembler a;
             AsmJitHelper ah(a);
             AsmJit::Label l_loop = a.newLabel();
-            DWORD dwResult = ERROR_SUCCESS;
-            int space = 4*WordSize;
+            DWORD thdID = 0;
+            int space   = 4 * WordSize;
 
             //
             // Create execution thread
             //
             if(!m_hWorkThd)
             {
-                DWORD thdID = 0;
-
-                //
-                // Create codecave
-                //
-                if(m_pWorkerCode == nullptr)
-                    Allocate(a.getCodeSize() + space, m_pWorkerCode);
-
                 ah.GenPrologue();
 
+                /*
+                    for(;;)
+                        SleepEx(5, TRUE);
+
+                    ExitThread(SetEvent(m_hWaitEvent));
+                */
                 a.bind(l_loop);
-                ah.GenCall(&SleepEx, {5, TRUE});
+                ah.GenCall(&SleepEx, { 5, TRUE });
                 a.jmp(l_loop);
 
                 ah.ExitThreadWithStatus();
@@ -383,15 +314,118 @@ namespace ds_mmap
                         m_pWorkerCode = nullptr;
                     }
 
-                    return GetLastError();
+                    return 0;
                 }
 
                 m_hWorkThd = CreateRemoteThread(m_hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)((uint8_t*)m_pWorkerCode + space), m_pWorkerCode, 0, &thdID);
 
-                // Create synchronization event
-                if (!m_hWorkThd || !CreateAPCEvent(thdID))
-                    dwResult = GetLastError();
+                return thdID;
             }
+            else
+                return GetThreadId(m_hWorkThd);            
+        }
+
+        /*
+            Create event to synchronize APC procedures
+
+            RETURN:
+                Error code
+        */
+        bool CMemCore::CreateAPCEvent( DWORD threadID )
+        {         
+            if(m_hWaitEvent == NULL)
+            {
+                AsmJit::Assembler a;
+                AsmJitHelper ah(a);
+
+                size_t dwResult        = ERROR_SUCCESS;
+                void *pCodecave        = NULL;
+                wchar_t pEventName[64] = {0};
+                size_t len             =  sizeof(pEventName);
+
+                // Generate event name
+                swprintf_s(pEventName, ARRAYSIZE(pEventName), L"_MMapEvent_0x%x_0x%x", threadID, GetTickCount());
+
+                Allocate(a.getCodeSize() + len, pCodecave);
+
+                ah.GenPrologue();
+                ah.GenCall(&CreateEventW, { NULL, TRUE, FALSE, (size_t)pCodecave });
+
+                // Save event handle
+            #ifdef _M_AMD64
+                a.mov(AsmJit::ndx, AsmJit::qword_ptr(AsmJit::nsp, WordSize));
+            #else
+                a.mov(AsmJit::ndx, AsmJit::dword_ptr(AsmJit::nbp, 2 * WordSize));
+            #endif   
+
+                a.mov(sysint_ptr(AsmJit::ndx, WordSize), AsmJit::nax);
+
+                ah.ExitThreadWithStatus();
+                ah.GenEpilogue();
+
+                if(Write((uint8_t*)pCodecave + len, a.getCodeSize(), a.make()) != ERROR_SUCCESS ||
+                    Write((uint8_t*)pCodecave, len, pEventName) != ERROR_SUCCESS)
+                {
+                    if(pCodecave)
+                        Free(pCodecave);
+
+                    return false;
+                }
+
+                RemoteCallDirect((uint8_t*)pCodecave + len, m_pWorkerCode, dwResult);
+
+                m_hWaitEvent = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, pEventName);
+
+                if(pCodecave)
+                    Free(pCodecave);
+
+                if(dwResult == NULL || m_hWaitEvent == NULL)
+                {
+                    SetLastError(ERROR_OBJECT_NOT_FOUND);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /*
+            Create environment for future RPC
+
+            IN:
+                noThread - create only codecave and sync event, without thread
+
+            RETURN:
+                Error code
+
+            Code layout (x86/x64):
+            -------------------------------------------------------------------------
+            | Return value |  Event handle  |  Free Space   | Thread execution code |
+            ------------------------------------------------------------------------
+            |   4/8 bytes  |    4/8 bytes   |   8/16 bytes  |                       |
+            -------------------------------------------------------------------------
+        */
+        DWORD CMemCore::CreateRPCEnvironment( bool noThread /*= false*/ )
+        {
+            DWORD dwResult = ERROR_SUCCESS;
+            DWORD thdID    = 1337;
+            bool status    = true;
+
+            //
+            // Allocate environment codecave
+            //
+            if(m_pWorkerCode == nullptr)
+                Allocate(0x1000, m_pWorkerCode);
+
+            // Create RPC thread
+            if(noThread == false)
+                thdID = CreateWorkerThread();
+
+            // Create synchronization event
+            status = CreateAPCEvent(thdID);
+             
+            if(thdID == 0 || status == false)
+                dwResult = GetLastError();
 
             return dwResult;
         }
@@ -494,7 +528,7 @@ namespace ds_mmap
 
             // Create thread if needed
             if(!m_hWorkThd)
-                CreateWorkerThread();
+                CreateRPCEnvironment();
 
             if(m_hWaitEvent)
                 ResetEvent(m_hWaitEvent);
@@ -503,11 +537,11 @@ namespace ds_mmap
             if(QueueUserAPC((PAPCFUNC)m_pCodecave, m_hWorkThd, (ULONG_PTR)m_pWorkerCode))
             {
                 dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
-                callResult = Read<size_t>((size_t)m_pWorkerCode);
+                callResult = Read<size_t>(m_pWorkerCode);
             }
 
             // Ensure APC function fully returns
-            Sleep(1);
+            Sleep(0);
 
             return dwResult;
         }
@@ -552,50 +586,27 @@ namespace ds_mmap
                 AsmJitHelper ah(a);
 
             #ifdef _M_AMD64
+                const int count      = 15;
+                AsmJit::GPReg regs[] = { AsmJit::rax, AsmJit::rbx, AsmJit::rcx, AsmJit::rdx, AsmJit::rsi, 
+                                         AsmJit::rdi, AsmJit::r8,  AsmJit::r9,  AsmJit::r10, AsmJit::r11, 
+                                         AsmJit::r12, AsmJit::r13, AsmJit::r14, AsmJit::r15, AsmJit::rbp };
                 //
                 // Preserve thread context
                 // I don't care about FPU, XMM and anything else
-                // Why they removed pushad...
                 //
                 a.sub(AsmJit::rsp, 15 * WordSize);  // Stack must be aligned on 16 bytes 
-                a.pushfq();                         //
+                a.pushfq();                            //
 
-                a.mov(AsmJit::Mem(AsmJit::rsp, 0  * WordSize), AsmJit::rax);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 1  * WordSize), AsmJit::rbx);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 2  * WordSize), AsmJit::rcx);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 3  * WordSize), AsmJit::rdx);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 4  * WordSize), AsmJit::rsi);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 5  * WordSize), AsmJit::rdi);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 6  * WordSize), AsmJit::r8 );
-                a.mov(AsmJit::Mem(AsmJit::rsp, 7  * WordSize), AsmJit::r9 );
-                a.mov(AsmJit::Mem(AsmJit::rsp, 8  * WordSize), AsmJit::r10);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 9  * WordSize), AsmJit::r11);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 10 * WordSize), AsmJit::r12);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 11 * WordSize), AsmJit::r13);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 12 * WordSize), AsmJit::r14);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 13 * WordSize), AsmJit::r15);
-                a.mov(AsmJit::Mem(AsmJit::rsp, 14 * WordSize), AsmJit::rbp);
+                for(int i = 0; i < count; i++)
+                     a.mov(AsmJit::Mem(AsmJit::rsp, i * WordSize), regs[i]);
 
                 ah.GenCall(m_pCodecave, { (size_t)m_pWorkerCode });
 
-                a.mov(AsmJit::rax, AsmJit::Mem(AsmJit::rsp, 0  * WordSize));
-                a.mov(AsmJit::rbx, AsmJit::Mem(AsmJit::rsp, 1  * WordSize));
-                a.mov(AsmJit::rcx, AsmJit::Mem(AsmJit::rsp, 2  * WordSize));
-                a.mov(AsmJit::rdx, AsmJit::Mem(AsmJit::rsp, 3  * WordSize));
-                a.mov(AsmJit::rsi, AsmJit::Mem(AsmJit::rsp, 4  * WordSize));
-                a.mov(AsmJit::rdi, AsmJit::Mem(AsmJit::rsp, 5  * WordSize));
-                a.mov(AsmJit::r8,  AsmJit::Mem(AsmJit::rsp, 6  * WordSize));
-                a.mov(AsmJit::r9,  AsmJit::Mem(AsmJit::rsp, 7  * WordSize));
-                a.mov(AsmJit::r10, AsmJit::Mem(AsmJit::rsp, 8  * WordSize));
-                a.mov(AsmJit::r11, AsmJit::Mem(AsmJit::rsp, 9  * WordSize));
-                a.mov(AsmJit::r12, AsmJit::Mem(AsmJit::rsp, 10 * WordSize));
-                a.mov(AsmJit::r13, AsmJit::Mem(AsmJit::rsp, 11 * WordSize));
-                a.mov(AsmJit::r14, AsmJit::Mem(AsmJit::rsp, 12 * WordSize));
-                a.mov(AsmJit::r15, AsmJit::Mem(AsmJit::rsp, 13 * WordSize));
-                a.mov(AsmJit::rbp, AsmJit::Mem(AsmJit::rsp, 14 * WordSize));
+                for(int i = 0; i < count; i++)
+                    a.mov(regs[i], AsmJit::Mem(AsmJit::rsp, i * WordSize));
 
                 a.popfq();
-                a.add(AsmJit::rsp, 15 * WordSize);
+                a.add(AsmJit::rsp, count * WordSize);
 
                 a.jmp(ctx.Rip);
             #else
@@ -630,7 +641,7 @@ namespace ds_mmap
             if(dwResult == ERROR_SUCCESS)
             {
                 dwResult   = WaitForSingleObject(m_hWaitEvent, INFINITE);
-                callResult = Read<size_t>((size_t)m_pWorkerCode);
+                callResult = Read<size_t>(m_pWorkerCode);
             }
 
             return dwResult;
@@ -735,7 +746,6 @@ namespace ds_mmap
 
             return tbi.TebBaseAddress;
         }
-
 
     }
 }

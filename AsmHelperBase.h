@@ -13,54 +13,98 @@ namespace ds_mmap
 {
     #define WordSize sizeof(size_t)
 
+    //
     // General purpose asm variable
+    //
     struct GenVar
     {
-        enum etype
+        enum eType
         {
             reg,
             imm,
+            imm_double,
+            imm_float,
             mem,
             mem_ptr
         };
 
-        AsmJit::GPReg reg_val;
-        AsmJit::Mem   mem_val;
-        size_t        imm_val;
-        etype         type;
+        eType         type;             // Variable type
 
+        AsmJit::GPReg reg_val;          // General purpose register
+        AsmJit::Mem   mem_val;          // Memory pointer
+
+        union 
+        {
+            size_t    imm_val;          // Immediate value
+            double    imm_double_val;   // Immediate floating point value, double
+            float     imm_float_val;    // Immediate floating point value, float
+        } ;
+        
         GenVar(size_t _imm)
             : type(imm)
             , imm_val(_imm)
         {
         }
 
+        explicit GenVar(double _imm_fpu)
+            : type(imm_double)
+            , imm_double_val(_imm_fpu)
+        {
+        }
+
+        explicit GenVar(float _imm_fpu)
+            : type(imm_float)
+            , imm_float_val(_imm_fpu)
+        {
+        }
+
         GenVar(const AsmJit::GPReg& _reg)
             : type(reg)
             , reg_val(_reg)
-            , imm_val((size_t)-1)
+            , imm_double_val(-1.0)
         {
         }
 
         GenVar(const AsmJit::Mem& _mem)
             : type(mem)
             , mem_val(_mem)
-            , imm_val((size_t)-1)
+            , imm_double_val(-1.0)
         {
         }
 
         explicit GenVar(AsmJit::Mem* _mem)
             : type(mem_ptr)
             , mem_val(*_mem)
-            , imm_val((size_t)-1)
+            , imm_double_val(-1.0)
         {
         }
 
-        inline etype  getType() const { return type; }
-        inline size_t getImm()  const { return imm_val; }
+        inline eType  getType()       const { return type; }
+        inline size_t getImm()        const { return imm_val; }
+        inline size_t getImm_float()  const { return *(uint32_t*)&imm_float_val; }
+        inline size_t getImm_double() const { return *(size_t*)&imm_double_val; }
 
         inline const AsmJit::GPReg& getReg() const { return reg_val; }
         inline const AsmJit::Mem&   getMem() const { return mem_val; }
+    };
+
+    //
+    // Function calling convention
+    //
+    enum eCalligConvention
+    {
+        CC_cdecl,
+        CC_stdcall,
+        CC_thiscall,
+        CC_fastcall
+    };
+
+    // Argument pass type
+    enum eArgType
+    {
+        AT_ecx,
+        AT_edx,
+        AT_stack,
     };
 
     // 
@@ -79,13 +123,7 @@ namespace ds_mmap
         virtual void GenEpilogue( int retSize = WordSize ) = 0;
 
         // Function call code (__stdcall convention)
-        virtual void GenCall(void* pFN, std::initializer_list<GenVar> args) = 0;
-
-        // Function call code (__cdecl convention)
-        virtual void GenCallCdecl(void* pFN, std::initializer_list<GenVar> args) = 0;
-
-        // Function call code (__thiscall convention)
-        virtual void GenCallThiscall(void* pFN, std::initializer_list<GenVar> args) = 0;
+        virtual void GenCall(void* pFN, std::initializer_list<GenVar> args, eCalligConvention cc = CC_stdcall) = 0;
 
         // Return from remote thread
         virtual void ExitThreadWithStatus() = 0;

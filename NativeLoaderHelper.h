@@ -4,6 +4,9 @@
 #include "MemCore.h"
 #include "PEManger.h"
 
+#define FIELD_OFFSET2(type, field)  ((LONG)(LONG_PTR)&(((type)0)->field))
+#define GET_FIELD_PTR(entry, field) (void*)((uint8_t*)entry + FIELD_OFFSET2(decltype(entry), field))
+
 extern "C"
 NTSYSAPI 
 NTSTATUS 
@@ -76,6 +79,17 @@ namespace ds_mmap
             bool CreateNTReference(HMODULE hMod, size_t ImageSize, const std::wstring& DllBaseName, const std::wstring& DllBasePath);
 
             /*
+                Create thread static TLS array
+
+                IN:
+                    pModule - module base address
+
+                RETURN:
+                    true on success
+            */
+            bool AddStaticTLSEntry(void* pModule);
+
+            /*
                 Create module record in LdrpInvertedFunctionTable
                 Used to create fake SAFESEH entries
 
@@ -111,9 +125,9 @@ namespace ds_mmap
             bool FindLdrpModuleBase();
 
             /*
-                Find RtlInsertInvertedFunctionTable and LdrpInvertedFunctionTable addresses
+                Search for RtlInsertInvertedFunctionTable, LdrpInvertedFunctionTable, LdrpHandleTlsData
             */
-            bool FindInvertedFunctionTableStuff();
+            bool PatternSearch();
 
             /*
                 Find Loader heap base
@@ -146,7 +160,7 @@ namespace ds_mmap
                     pNode - node to insert
                     bLeft - insert as left child (if false - insert as right child)
             */
-            void InsertTreeNode( void* pParentNode, void* pNode, bool bLeft = false );
+            void InsertTreeNode( _LDR_DATA_TABLE_ENTRY_W8* pParentNode, _LDR_DATA_TABLE_ENTRY_W8* pNode, bool bLeft = false );
 
             /*
                 Insert entry into LdrpHashTable[]
@@ -176,14 +190,26 @@ namespace ds_mmap
             VOID InsertTailList( PLIST_ENTRY ListHead, PLIST_ENTRY Entry );
 
             /*
+                Get module native node ptr or create new
+
+                IN:
+                    ptr - node pointer (if nullptr - new dummy node is allocated)
+                    pModule - module base address
+
+                RETURN:
+                    Node address
+            */
+            template<typename T> 
+            T* SetNode(T* ptr, void* pModule);
+
+            /*
                 Determine if current OS is Win8 and higher
             */
-            bool IsWin8orHigher() const { return (m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2); }
+            inline bool IsWin8orHigher() const { return (m_verinfo.dwMajorVersion >= 6 && m_verinfo.dwMinorVersion >= 2); }
 
             /*
             */
             CNtLdr& operator =( const CNtLdr& other );
-
         private:
             CMemCore&       m_memory;                           // Process memory routines
             OSVERSIONINFO   m_verinfo;                          // OS version info
@@ -191,8 +217,11 @@ namespace ds_mmap
             size_t          m_LdrpModuleIndexBase;              // LdrpModuleIndex address
             size_t          m_LdrpModuleBase;                   // PEB->Ldr->InLoadOrderModuleList address
             size_t          m_LdrHeapBase;                      // Loader heap base address
+            void           *m_LdrpHandleTlsData;                // LdrpHandleTlsData address
             void           *m_LdrpInvertedFunctionTable;        // LdrpInvertedFunctionTable address
             void           *m_RtlInsertInvertedFunctionTable;   // RtlInsertInvertedFunctionTable address
+
+            std::map<HMODULE, void*> m_nodeMap;                 // Map of allocated native structures
         };
     }
 }

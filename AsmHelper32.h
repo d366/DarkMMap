@@ -2,6 +2,9 @@
 
 #include "AsmHelperBase.h"
 
+#define LODWORD(l)    ((DWORD)(((ULONGLONG)(l)) & 0xffffffff))
+#define HIDWORD(l)    ((DWORD)((((ULONGLONG)(l)) >> 32) & 0xffffffff))
+
 namespace ds_mmap
 {
     class CAsmHelper32 : public CAsmHelperBase
@@ -10,20 +13,14 @@ namespace ds_mmap
         CAsmHelper32(AsmJit::Assembler& _a);
         ~CAsmHelper32(void);
 
-        // 
+        // Generate function prologue code
         virtual void GenPrologue();
 
-        // 
+        // Generate function epilogue code
         virtual void GenEpilogue( int retSize = WordSize );
 
         // Function call code (__stdcall convention)
-        virtual void GenCall(void* pFN, std::initializer_list<GenVar> args);
-
-        // Function call code (__cdecl convention)
-        virtual void GenCallCdecl(void* pFN, std::initializer_list<GenVar> args);
-
-        // Function call code (__thiscall convention)
-        virtual void GenCallThiscall(void* pFN, std::initializer_list<GenVar> args);
+        virtual void GenCall(void* pFN, std::initializer_list<GenVar> args, eCalligConvention cc = CC_stdcall);
 
         // Return from remote thread
         virtual void ExitThreadWithStatus();
@@ -34,39 +31,21 @@ namespace ds_mmap
     private:
         CAsmHelper32& operator = (const CAsmHelper32& other);
 
+        // Prepare argument to be passed into function
+        void PushArg(const GenVar& arg, eArgType regidx = AT_stack);
+
         template<typename _Type>
-        void PushArg(_Type arg, bool bThiscall = false)
+        void PushArgp(_Type arg, eArgType index)
         {
-            if(arg.getType() == GenVar::imm)
-            {
-                if(bThiscall)
-                    a.mov(AsmJit::ecx, arg.getImm());
-                else
-                    a.push(arg.getImm());
-            }
-            else if(arg.getType() == GenVar::mem_ptr)
-            {
-                a.lea(AsmJit::eax, arg.getMem());
-                if(bThiscall)
-                    a.mov(AsmJit::ecx, AsmJit::eax);
-                else
-                    a.push(AsmJit::eax);
-            }
-            else if(arg.getType() == GenVar::mem)
-            {
-                if(bThiscall)
-                    a.mov(AsmJit::ecx, arg.getMem());
-                else
-                    a.push(arg.getMem());
-            }
+            static const AsmJit::GPReg regs[] = { AsmJit::ecx, AsmJit::edx };
+
+            // for __fastcall and __thiscall
+            if( index < AT_stack )
+                a.mov(regs[index], arg);
             else
-            {
-                if(bThiscall)
-                    a.mov(AsmJit::ecx, arg.getReg());
-                else
-                    a.push(arg.getReg());
-            }
+                a.push(arg);
         }
+
     };
 }
 

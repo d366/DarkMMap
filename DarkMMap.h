@@ -13,6 +13,9 @@ namespace ds_mmap
     // DllMain routine
     typedef BOOL (APIENTRY *pDllMain)(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved);
 
+    //
+    // Loader flags
+    //
     enum eLoadFlags
     {
         NoFlags         = 0x00,     // No flags
@@ -21,10 +24,13 @@ namespace ds_mmap
         UnlinkVAD       = 0x04,     // Unlink image VAD from process VAD tree
         RebaseProcess   = 0x20,     // If target image is an .exe file, process base address will be replaced with mapped module value
 
-        NoExceptions    = 0x1000,   // Do not create custom exception handler
-        NoDelayLoad     = 0x2000,   // Do not resolve delay import
-        NoSxS           = 0x4000,   // Do not apply SxS activation context
+        NoExceptions    = 0x01000,   // Do not create custom exception handler
+        PartialExcept   = 0x02000,   // Only create Inverted function table, without VEH
+        NoDelayLoad     = 0x04000,   // Do not resolve delay import
+        NoSxS           = 0x08000,   // Do not apply SxS activation context
+        NoTLS           = 0x10000,   // Skip TLS initialization and don't execute TLS callbacks
     };
+
 
     struct ImageContext
     {
@@ -78,11 +84,6 @@ namespace ds_mmap
         HMODULE MapDll( const std::string&  path, eLoadFlags flags = NoFlags );
 
         /*
-            Map pure managed dll
-        */
-        HMODULE MapPureManaged();
-
-        /*
             Unmap associated PE image from target process
         */
         bool UnmapAllModules();
@@ -99,11 +100,38 @@ namespace ds_mmap
 
             RETURN:
                 Function address
-                0 - if not found shdocvw.dll 0x8d
+                0 - if not found
         */
         FARPROC GetProcAddressEx(HMODULE mod, const char* procName);
+
+        /*
+            Perform an arbitrary function call in remote process.
+            x86 version does not support floating point arguments
+
+            IN:
+                pFn - function address
+                args - function arguments
+                cc - function calling convention (is ignored for x64)
+                hContextThread - execution thread
+                                 if NULL - function will be executed in new thread
+                                 if INVALID_HANDLE_VALUE - function will be executed in default worker thread
+
+            OUT:
+                result - function return value
+
+            RETURN:
+                true if successful call
+        */
+        bool CallFunction(void* pFn, std::initializer_list<GenVar> args, size_t& result,  eCalligConvention cc = CC_cdecl, HANDLE hContextThread = INVALID_HANDLE_VALUE);
         
     private:
+
+        /*
+            Map pure IL image
+            Not supported yet
+        */
+        HMODULE MapPureManaged();
+
         /*
             Copy image header and sections into target process
         */
